@@ -7586,14 +7586,14 @@ graph_MSI_segmentation <- function(filepath_imzml, preprocessing_parameters = li
 
 
 
-#################### PEAKLIST EXPORT ####################
+#################### MS PEAKLIST EXPORT ####################
 
 
 
 
 
 ### Program version (Specified by the program writer!!!!)
-R_script_version <- "2017.05.19.0"
+R_script_version <- "2017.05.19.1"
 ### GitHub URL where the R file is
 github_R_url <- "https://raw.githubusercontent.com/gmanuel89/MS-Peaklist-Export/master/MS%20PEAKLIST%20EXPORT.R"
 ### Name of the file when downloaded
@@ -7621,7 +7621,7 @@ output_folder <- getwd()
 spectra_format <- "imzml"
 low_intensity_peak_removal_threshold_method <- "element-wise"
 peak_picking_mode <- "all"
-peak_picking_algorithm <- "MAD"
+peak_picking_algorithm <- "SuperSmoother"
 file_type_export <- "csv"
 spectra <- NULL
 peaks <- NULL
@@ -7649,7 +7649,7 @@ filepath_import_value <- NULL
 output_folder_value <- output_folder
 spectra_format_value <- "imzML"
 peak_picking_mode_value <- "all"
-peak_picking_algorithm_value <- "Median\nAbsolute Deviation"
+peak_picking_algorithm_value <- "Super Smoother"
 low_intensity_peak_removal_threshold_method_value <- "element-wise"
 spectra_format_value <- "imzML"
 allow_parallelization_value <- "NO"
@@ -8160,7 +8160,7 @@ select_samples_function <- function() {
             tkmessageBox(message = paste("The sample spectra will be read from:", filepath_import))
         }
     } else if (spectra_input_type == "file") {
-        filepath_import_select <- tkmessageBox(title = "Samples", message = "Select the file for the spectra to be imported.", icon = "info")
+        filepath_import_select <- tkmessageBox(title = "Samples", message = "Select the file for the spectra to be imported", icon = "info")
         # Filter openable files according to the format
         if (spectra_format == "imzml" || spectra_format == "imzML") {
             filepath_import <- tclvalue(tkgetOpenFile(filetypes = "{{imzML files} {.imzML .imzml}}"))
@@ -8234,7 +8234,7 @@ peak_picking_algorithm_choice <- function() {
     } else if (peak_picking_algorithm_value == "SuperSmoother") {
         peak_picking_algorithm_value <- "Super Smoother"
     }
-    peak_picking_algorithm_value_label <- tklabel(window, text = peak_picking_algorithm_value, font = label_font, bg = "white", width = 20)
+    peak_picking_algorithm_value_label <- tklabel(window, text = peak_picking_algorithm_value, font = label_font, bg = "white", width = 20, height = 2)
     tkgrid(peak_picking_algorithm_value_label, row = 2, column = 4, padx = c(10, 10), pady = c(10, 10))
     # Escape the function
     .GlobalEnv$peak_picking_algorithm <- peak_picking_algorithm
@@ -8437,24 +8437,26 @@ import_spectra_function <- function() {
             spectra <- replace_sample_name_list(spectra, spectra_format = spectra_format, type = "name", replace_sample_name_field = FALSE)
         }
         ##### Alignment of the imported spectra
-        spectral_alignment_performed <- FALSE
-        try({
-            spectra <- align_spectra(spectra, spectral_alignment_algorithm = spectral_alignment_algorithm, spectral_alignment_reference = spectral_alignment_reference, tof_mode = tof_mode, deisotope_peaklist = FALSE)
-            spectral_alignment_performed <- TRUE
-        }, silent = TRUE)
+        if (!is.null(spectral_alignment_algorithm)) {
+            spectral_alignment_performed <- FALSE
+            try({
+                spectra <- align_spectra(spectra, spectral_alignment_algorithm = spectral_alignment_algorithm, spectral_alignment_reference = spectral_alignment_reference, tof_mode = tof_mode, deisotope_peaklist = FALSE)
+                spectral_alignment_performed <- TRUE
+            }, silent = TRUE)
+            ### Spectral alignment messagebox
+            if (spectral_alignment_performed == TRUE) {
+                print("The spectral alignment has been succesfully performed!")
+            } else {
+                print("The spectral alignment could not be performed!")
+                #tkmessageBox(title = "Spectral alignment not possible", message = "The spectral alignment could not be performed!", icon = "warning")
+            }
+        }
         setTkProgressBar(import_progress_bar, value = 1, title = NULL, label = "100 %")
         close(import_progress_bar)
         # Exit the function and put the variable into the R workspace
         .GlobalEnv$spectra <- spectra
         ### Messagebox
         tkmessageBox(title = "Import successful", message = "The spectra have been successfully imported and preprocessed", icon = "info")
-        ### Spectral alignment messagebox
-        if (spectral_alignment_performed == TRUE) {
-            print("The spectral alignment has been succesfully performed!")
-        } else {
-            print("The spectral alignment could not be performed!")
-            #tkmessageBox(title = "Spectral alignment not possible", message = "The spectral alignment could not be performed!", icon = "warning")
-        }
     } else {
         ### Messagebox
         tkmessageBox(title = "Import not possible", message = "No spectra files or folder have been selected!", icon = "warning")
@@ -8514,17 +8516,30 @@ signals_avg_and_sd_function <- function() {
     if (!is.null(peaks)) {
         # Generate the vector recording the number of signals
         number_of_signals_vector <- numeric()
-        for (p in 1:length(peaks)) {
-            number_of_signals_vector <- append(number_of_signals_vector, length(peaks[[p]]@mass))
+        if (isMassPeaksList(peaks)) {
+            for (p in 1:length(peaks)) {
+                number_of_signals_vector <- append(number_of_signals_vector, length(peaks[[p]]@mass))
+            }
+            # Compute the mean and the standard deviation
+            mean_signal_number <- mean(number_of_signals_vector, na.rm = TRUE)
+            median_signal_number <- median(number_of_signals_vector, na.rm = TRUE)
+            sd_signal_number <- sd(number_of_signals_vector, na.rm = TRUE)
+            cv_signal_number <- (sd_signal_number / mean_signal_number) * 100
+            ### Messagebox
+            # Message
+            message_avg_sd <- paste("The mean number of signals in the spectral dataset is:", mean_signal_number, ",\n\nthe standard deviation is:", sd_signal_number, ",\n\nthe coefficient of variation is:", cv_signal_number, "%")
+            tkmessageBox(title = "Mean and SD of the number of signals", message = message_avg_sd, icon = "info")
+            signals_avg_and_sd_value <- paste0("Mean: ", mean_signal_number, "\nMedian: ", median_signal_number, "\nStandard Deviation: ", sd_signal_number, "\nCoefficient of Variation: ", cv_signal_number)
+        } else if (isMassPeaks(peaks)) {
+            number_of_signals <- length(peaks@mass)
+            # Message
+            message_avg_sd <- paste("The number of signals in the spectrum is:", number_of_signals)
+            tkmessageBox(title = "Number of signals", message = message_avg_sd, icon = "info")
+            signals_avg_and_sd_value <- paste0("Number of signals: ", number_of_signals)
         }
-        # Compute the mean and the standard deviation
-        mean_signal_number <- mean(number_of_signals_vector, na.rm = TRUE)
-        sd_signal_number <- sd(number_of_signals_vector, na.rm = TRUE)
-        cv_signal_number <- (sd_signal_number / mean_signal_number) *100
-        ### Messagebox
-        # Message
-        message_avg_sd <- paste("The mean number of signals in the spectral dataset is:", mean_signal_number, ",\n\nthe standard deviation is:", sd_signal_number, ",\n\nthe coefficient of variation is:", cv_signal_number, "%")
-        tkmessageBox(title = "Mean and SD of the number of signals", message = message_avg_sd, icon = "info")
+        # Generate a label to see the output
+        signals_avg_and_sd_value_label <- tklabel(window, text = signals_avg_and_sd_value, font = label_font, bg = "white", width = 40, height = 5)
+        tkgrid(signals_avg_and_sd_value_label, row = 9, column = 4, padx = c(10, 10), pady = c(10, 10),columnspan = 2)
     } else if (is.null(peaks)) {
         ### Messagebox
         tkmessageBox(title = "Something is wrong", message = "Some elements are needed to perform this operation: make sure that the peak picking process has been performed", icon = "warning")
@@ -8925,7 +8940,7 @@ download_updates_button <- tkbutton(window, text="DOWNLOAD\nUPDATE...", command 
 #### Displaying labels
 file_type_export_value_label <- tklabel(window, text = file_type_export, font = label_font, bg = "white", width = 20)
 peak_picking_mode_value_label <- tklabel(window, text = peak_picking_mode_value, font = label_font, bg = "white", width = 20)
-peak_picking_algorithm_value_label <- tklabel(window, text = peak_picking_algorithm_value, font = label_font, bg = "white", width = 20)
+peak_picking_algorithm_value_label <- tklabel(window, text = peak_picking_algorithm_value, font = label_font, bg = "white", width = 20, height = 2)
 peaks_deisotoping_value_label <- tklabel(window, text = peaks_deisotoping_value, font = label_font, bg = "white", width = 20)
 low_intensity_peak_removal_threshold_method_value_label <- tklabel(window, text = low_intensity_peak_removal_threshold_method_value, font = label_font, bg = "white", width = 20)
 spectra_format_value_label <- tklabel(window, text = spectra_format_value, font = label_font, bg = "white", width = 20)
@@ -8975,3 +8990,4 @@ tkgrid(dump_spectra_files_button, row = 8, column = 5, padx = c(10, 10), pady = 
 tkgrid(end_session_button, row = 8, column = 6, padx = c(10, 10), pady = c(10, 10))
 tkgrid(download_updates_button, row = 1, column = 5, padx = c(10, 10), pady = c(10, 10))
 tkgrid(check_for_updates_value_label, row = 1, column = 6, padx = c(10, 10), pady = c(10, 10))
+
