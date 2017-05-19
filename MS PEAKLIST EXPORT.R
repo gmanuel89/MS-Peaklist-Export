@@ -585,7 +585,7 @@ remove_low_intensity_peaks <- function(peaks, low_intensity_peak_removal_thresho
     ########## Do everything only if there is a reasonable value of the percentage
     if (low_intensity_peak_removal_threshold_percent > 0 && low_intensity_peak_removal_threshold_percent < 100) {
         ########## ELEMENT-WISE
-        if (low_intensity_peak_removal_threshold_method == "element-wise") {
+        if (low_intensity_peak_removal_threshold_method == "element-wise" || low_intensity_peak_removal_threshold_method == "spectrum-wise") {
             ##### INTENSITY FILTERING FUNCTION (ELEMENT-WISE)
             intensity_filtering_subfunction_element <- function(peaks, low_intensity_peak_removal_threshold_percent) {
                 # Filter out the peaks whose intensity is below a certain threshold
@@ -2628,8 +2628,8 @@ deisotope_peaks <- function(peaks, pattern_model_correlation = 0.95, isotopic_to
 
 
 ################################################################# PEAK ALIGNMENT
-# This function takes a list of peaks (MALDIquant) and computes the peak alignment, along with the false positive removal and the removal of low-intensity peaks.
-align_and_filter_peaks <- function(peaks, peak_picking_algorithm = "SuperSmoother", tof_mode = "linear", peak_filtering_frequency_threshold_percent = 5, low_intensity_peak_removal_threshold_percent = 0, low_intensity_peak_removal_threshold_method = "element-wise", reference_peaklist = NULL, spectra = NULL, alignment_iterations = 5, allow_parallelization = FALSE) {
+# This function takes a list of peaks (MALDIquant) and computes the peak alignment, along with the false positive peaks removal (classwise if a class vector corresponding to the spectra list is specified) and the removal of low-intensity peaks.
+align_and_filter_peaks <- function(peaks, peak_picking_algorithm = "SuperSmoother", tof_mode = "linear", peak_filtering_frequency_threshold_percent = 5, class_vector_for_peak_filtering = NULL, low_intensity_peak_removal_threshold_percent = 0, low_intensity_peak_removal_threshold_method = "element-wise", reference_peaklist = NULL, spectra = NULL, alignment_iterations = 5, allow_parallelization = FALSE) {
     ########## Determine the tolerance in PPM
     if (tof_mode == "linear" || tof_mode == "Linear" || tof_mode == "L") {
         tolerance_ppm <- 2000
@@ -2660,13 +2660,17 @@ align_and_filter_peaks <- function(peaks, peak_picking_algorithm = "SuperSmoothe
                 peaks_aligned <- binPeaks(peaks_aligned, method = "strict", tolerance = (tolerance_ppm/10^6))
             }
         }
-        ##### False positive removal
-        if (!is.null(peak_filtering_frequency_threshold_percent) && peak_filtering_frequency_threshold_percent > 0) {
-            peaks_aligned <- filterPeaks(peaks_aligned, minFrequency = (peak_filtering_frequency_threshold_percent/100))
-        }
         ##### Low-intensity peaks removal
         if (!is.null(low_intensity_peak_removal_threshold_percent) && low_intensity_peak_removal_threshold_percent > 0 && low_intensity_peak_removal_threshold_percent < 100) {
             peaks_aligned <- remove_low_intensity_peaks(peaks_aligned, low_intensity_peak_removal_threshold_percent = low_intensity_peak_removal_threshold_percent, low_intensity_peak_removal_threshold_method = low_intensity_peak_removal_threshold_method, allow_parallelization = allow_parallelization)
+        }
+        ##### False positive removal
+        if (!is.null(peak_filtering_frequency_threshold_percent) && peak_filtering_frequency_threshold_percent > 0) {
+            if (is.null(class_vector_for_peak_filtering)) {
+                peaks_aligned <- filterPeaks(peaks_aligned, minFrequency = (peak_filtering_frequency_threshold_percent/100))
+            } else {
+                peaks_aligned <- filterPeaks(peaks_aligned, minFrequency = (peak_filtering_frequency_threshold_percent/100), labels = class_vector_for_peak_filtering)
+            }
         }
         ##### Align to a reference peaklist: AVERAGE SPECTRUM (if a spectra list is provided)
         if (is.character(reference_peaklist) && reference_peaklist == "average" && !is.null(spectra)) {
@@ -2725,16 +2729,14 @@ align_and_filter_peaks <- function(peaks, peak_picking_algorithm = "SuperSmoothe
                 }
             }, silent = TRUE)
         }
-        # Low-intensity peaks removal
-        if (!is.null(low_intensity_peak_removal_threshold_percent) && low_intensity_peak_removal_threshold_percent > 0 && low_intensity_peak_removal_threshold_percent < 100) {
-            peaks <- remove_low_intensity_peaks(peaks_aligned, low_intensity_peak_removal_threshold_percent = low_intensity_peak_removal_threshold_percent, low_intensity_peak_removal_threshold_method = low_intensity_peak_removal_threshold_method, allow_parallelization = allow_parallelization)
-        }
+        ### Return
         return(peaks_aligned)
     } else {
         # Low-intensity peaks removal
         if (!is.null(low_intensity_peak_removal_threshold_percent) && low_intensity_peak_removal_threshold_percent > 0 && low_intensity_peak_removal_threshold_percent < 100) {
             peaks <- remove_low_intensity_peaks(peaks, low_intensity_peak_removal_threshold_percent = low_intensity_peak_removal_threshold_percent, low_intensity_peak_removal_threshold_method = low_intensity_peak_removal_threshold_method, allow_parallelization = allow_parallelization)
         }
+        ### Return
         return(peaks)
     }
 }
@@ -7593,13 +7595,13 @@ graph_MSI_segmentation <- function(filepath_imzml, preprocessing_parameters = li
 
 
 ### Program version (Specified by the program writer!!!!)
-R_script_version <- "2017.05.19.1"
+R_script_version <- "2017.05.19.2"
 ### GitHub URL where the R file is
 github_R_url <- "https://raw.githubusercontent.com/gmanuel89/MS-Peaklist-Export/master/MS%20PEAKLIST%20EXPORT.R"
 ### Name of the file when downloaded
 script_file_name <- "MS PEAKLIST EXPORT"
 # Change log
-change_log <- "1. Fixed GUI\n2. Import TXT spectra allowed\n3. New name!!"
+change_log <- "1. Fixed GUI\n2. Import TXT spectra allowed\n3. New name!!\n4. Classwise peak filtering"
 
 
 
@@ -7639,6 +7641,7 @@ average_replicates <- FALSE
 spectral_alignment_algorithm <- NULL
 spectral_alignment_reference <- "auto"
 peaks_deisotoping <- FALSE
+peak_filtering_mode <- "whole dataset"
 
 
 
@@ -7662,6 +7665,7 @@ spectral_alignment_value <- "NO"
 spectral_alignment_algorithm_value <- ""
 spectral_alignment_reference_value <- ""
 peaks_deisotoping_value <- "NO"
+peak_filtering_mode_value <- "whole dataset"
 
 
 
@@ -7932,7 +7936,7 @@ preprocessing_window_function <- function() {
             normalization_value <- "NO"
         }
         normalization_value_label <- tklabel(preproc_window, text = normalization_value, font = label_font, bg = "white", width = 20, height = 4)
-        tkgrid(normalization_value_label, row = 6, column = 3, padx = c(5, 5), pady = c(5, 5))
+        tkgrid(normalization_value_label, row = 7, column = 3, padx = c(5, 5), pady = c(5, 5))
         # Escape the function
         .GlobalEnv$normalization_mass_range <- normalization_mass_range
         .GlobalEnv$normalization_algorithm <- normalization_algorithm
@@ -8070,11 +8074,11 @@ preprocessing_window_function <- function() {
     tkgrid(baseline_subtraction_button, row = 5, column = 1, padx = c(5, 5), pady = c(5, 5))
     tkgrid(baseline_subtraction_algorithm_parameter_entry, row = 5, column = 2, padx = c(5, 5), pady = c(5, 5))
     tkgrid(baseline_subtraction_value_label, row = 5, column = 3, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(normalization_button, row = 6, column = 1, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(normalization_mass_range_entry, row = 6, column = 2, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(normalization_value_label, row = 6, column = 3, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(preprocess_spectra_in_packages_of_label, row = 7, column = 1, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(preprocess_spectra_in_packages_of_entry, row = 7, column = 2, padx = c(5, 5), pady = c(5, 5))
+    tkgrid(normalization_button, row = 7, column = 1, padx = c(5, 5), pady = c(5, 5))
+    tkgrid(normalization_mass_range_entry, row = 7, column = 2, padx = c(5, 5), pady = c(5, 5))
+    tkgrid(normalization_value_label, row = 7, column = 3, padx = c(5, 5), pady = c(5, 5))
+    tkgrid(preprocess_spectra_in_packages_of_label, row = 8, column = 1, padx = c(5, 5), pady = c(5, 5))
+    tkgrid(preprocess_spectra_in_packages_of_entry, row = 8, column = 2, padx = c(5, 5), pady = c(5, 5))
     tkgrid(spectral_alignment_button, row = 8, column = 1, padx = c(5, 5), pady = c(5, 5))
     tkgrid(spectral_alignment_value_label, row = 8, column = 2, padx = c(5, 5), pady = c(5, 5))
     tkgrid(commit_preprocessing_button, row = 9, column = 1, padx = c(5, 5), pady = c(5, 5))
@@ -8095,7 +8099,7 @@ file_type_export_choice <- function() {
     .GlobalEnv$file_type_export <- file_type_export
     # Set the value of the displaying label
     file_type_export_value_label <- tklabel(window, text = file_type_export, font = label_font, bg = "white", width = 20)
-    tkgrid(file_type_export_value_label, row = 7, column = 6, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(file_type_export_value_label, row = 8, column = 6, padx = c(10, 10), pady = c(10, 10))
 }
 
 ##### File name (export)
@@ -8285,7 +8289,7 @@ allow_parallelization_choice <- function() {
         allow_parallelization_value <- "NO"
     }
     allow_parallelization_value_label <- tklabel(window, text = allow_parallelization_value, font = label_font, bg = "white", width = 20)
-    tkgrid(allow_parallelization_value_label, row = 6, column = 4, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(allow_parallelization_value_label, row = 7, column = 4, padx = c(10, 10), pady = c(10, 10))
     # Escape the function
     .GlobalEnv$allow_parallelization <- allow_parallelization
     .GlobalEnv$allow_parallelization_value <- allow_parallelization_value
@@ -8309,10 +8313,27 @@ average_replicates_choice <- function() {
         average_replicates_value <- "NO"
     }
     average_replicates_value_label <- tklabel(window, text = average_replicates_value, font = label_font, bg = "white", width = 20)
-    tkgrid(average_replicates_value_label, row = 6, column = 2, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(average_replicates_value_label, row = 7, column = 2, padx = c(10, 10), pady = c(10, 10))
     # Escape the function
     .GlobalEnv$average_replicates <- average_replicates
     .GlobalEnv$average_replicates_value <- average_replicates_value
+}
+
+##### Peak filtering mode
+peak_filtering_mode_choice <- function() {
+    # Catch the value from the menu
+    peak_filtering_mode <- select.list(c("whole dataset","class-wise"), title = "Peak filtering mode", multiple = FALSE, preselect = "whole dataset")
+    # Default
+    if (peak_filtering_mode == "") {
+        peak_filtering_mode <- "whole dataset"
+    }
+    # Set the value of the displaying label
+    peak_filtering_mode_value <- peak_filtering_mode
+    peak_filtering_mode_value_label <- tklabel(window, text = peak_filtering_mode, font = label_font, bg = "white", width = 20)
+    tkgrid(peak_filtering_mode_value_label, row = 5, column = 5, padx = c(10, 10), pady = c(10, 10))
+    # Escape the function
+    .GlobalEnv$peak_filtering_mode <- peak_filtering_mode
+    .GlobalEnv$peak_filtering_mode_value <- peak_filtering_mode_value
 }
 
 ##### Low intensity peaks removal Method
@@ -8329,7 +8350,7 @@ low_intensity_peak_removal_threshold_method_choice <- function() {
         low_intensity_peak_removal_threshold_method <- "whole"
     }
     low_intensity_peak_removal_threshold_method_value_label <- tklabel(window, text = low_intensity_peak_removal_threshold_method_value, font = label_font, bg = "white", width = 20)
-    tkgrid(low_intensity_peak_removal_threshold_method_value_label, row = 4, column = 6, padx = c(10, 10), pady = c(10, 10))
+    tkgrid(low_intensity_peak_removal_threshold_method_value_label, row = 4, column = 5, padx = c(10, 10), pady = c(10, 10))
     # Escape the function
     .GlobalEnv$low_intensity_peak_removal_threshold_method <- low_intensity_peak_removal_threshold_method
     .GlobalEnv$low_intensity_peak_removal_threshold_method_value <- low_intensity_peak_removal_threshold_method_value
@@ -8451,10 +8472,24 @@ import_spectra_function <- function() {
                 #tkmessageBox(title = "Spectral alignment not possible", message = "The spectral alignment could not be performed!", icon = "warning")
             }
         }
+        ##### Retrieve the class list
+        # List the directories in the filepath_import folder
+        folder_list <- list.dirs(filepath_import, full.names = FALSE, recursive = FALSE)
+        # If there are only imzML files
+        if (length(folder_list) == 0) {
+            # Each imzML file is a class
+            class_list <- read_spectra_files(filepath_import, spectra_format = spectra_format, full_path = TRUE)
+            if (length(class_list) == 0) {
+                class_list <- filepath_import
+            }
+        } else if ((length(folder_list) == 1 && folder_list != "") || (length(folder_list) >= 1)) {
+            class_list <- folder_list
+        }
         setTkProgressBar(import_progress_bar, value = 1, title = NULL, label = "100 %")
         close(import_progress_bar)
         # Exit the function and put the variable into the R workspace
         .GlobalEnv$spectra <- spectra
+        .GlobalEnv$class_list <- class_list
         ### Messagebox
         tkmessageBox(title = "Import successful", message = "The spectra have been successfully imported and preprocessed", icon = "info")
     } else {
@@ -8495,7 +8530,20 @@ peak_picking_function <- function() {
         low_intensity_peak_removal_threshold_percent_value <- as.character(low_intensity_peak_removal_threshold_percent)
         ##### Peak alignment
         setTkProgressBar(peak_picking_progress_bar, value = 0.50, title = NULL, label = "50 %")
-        peaks <- align_and_filter_peaks(peaks, peak_picking_algorithm = peak_picking_algorithm, tof_mode = tof_mode, peak_filtering_frequency_threshold_percent = peaks_filtering_threshold_percent, low_intensity_peak_removal_threshold_percent = low_intensity_peak_removal_threshold_percent, low_intensity_peak_removal_threshold_method = low_intensity_peak_removal_threshold_method, reference_peaklist = NULL, spectra = spectra, alignment_iterations = 5, allow_parallelization = allow_parallelization)
+        if (peak_filtering_mode == "class-wise") {
+            peaks_class <- replace_class_name(peaks, class_list = class_list, class_in_file_path = TRUE, class_in_file_name = FALSE, spectra_format = spectra_format)
+            class_vector_for_peak_filtering <- vector()
+            if (isMassPeaksList(peaks_class)) {
+                for (p in 1:length(peaks_class)) {
+                    class_vector_for_peak_filtering <- append(class_vector_for_peak_filtering, peaks_class[[p]]@metaData$file)
+                }
+            } else if (isMassPeaks(peaks_class)) {
+                class_vector_for_peak_filtering <- peaks_class@metaData$file
+            }
+            peaks <- align_and_filter_peaks(peaks, peak_picking_algorithm = peak_picking_algorithm, tof_mode = tof_mode, peak_filtering_frequency_threshold_percent = peaks_filtering_threshold_percent, class_vector_for_peak_filtering = class_vector_for_peak_filtering, low_intensity_peak_removal_threshold_percent = low_intensity_peak_removal_threshold_percent, low_intensity_peak_removal_threshold_method = low_intensity_peak_removal_threshold_method, reference_peaklist = NULL, spectra = spectra, alignment_iterations = 5, allow_parallelization = allow_parallelization)
+        } else if (peak_filtering_mode == "whole dataset") {
+            peaks <- align_and_filter_peaks(peaks, peak_picking_algorithm = peak_picking_algorithm, tof_mode = tof_mode, peak_filtering_frequency_threshold_percent = peaks_filtering_threshold_percent, class_vector_for_peak_filtering = NULL, low_intensity_peak_removal_threshold_percent = low_intensity_peak_removal_threshold_percent, low_intensity_peak_removal_threshold_method = low_intensity_peak_removal_threshold_method, reference_peaklist = NULL, spectra = spectra, alignment_iterations = 5, allow_parallelization = allow_parallelization)
+        }
         setTkProgressBar(peak_picking_progress_bar, value = 1, title = NULL, label = "100 %")
         close(peak_picking_progress_bar)
         # Exit the function and put the variable into the R workspace
@@ -8539,7 +8587,7 @@ signals_avg_and_sd_function <- function() {
         }
         # Generate a label to see the output
         signals_avg_and_sd_value_label <- tklabel(window, text = signals_avg_and_sd_value, font = label_font, bg = "white", width = 40, height = 5)
-        tkgrid(signals_avg_and_sd_value_label, row = 9, column = 4, padx = c(10, 10), pady = c(10, 10),columnspan = 2)
+        tkgrid(signals_avg_and_sd_value_label, row = 10, column = 4, padx = c(10, 10), pady = c(10, 10),columnspan = 2)
     } else if (is.null(peaks)) {
         ### Messagebox
         tkmessageBox(title = "Something is wrong", message = "Some elements are needed to perform this operation: make sure that the peak picking process has been performed", icon = "warning")
@@ -8554,19 +8602,6 @@ run_peaklist_export_function <- function() {
         # Progress bar
         program_progress_bar <- tkProgressBar(title = "Computing...", label = "", min = 0, max = 1, initial = 0, width = 300)
         setTkProgressBar(program_progress_bar, value = 0, title = NULL, label = "0 %")
-        ### List the directories in the filepath_import folder
-        folder_list <- list.dirs(filepath_import, full.names = FALSE, recursive = FALSE)
-        setTkProgressBar(program_progress_bar, value = 0.25, title = NULL, label = "25 %")
-        # If there are only imzML files
-        if (length(folder_list) == 0) {
-            # Each imzML file is a class
-            class_list <- read_spectra_files(filepath_import, spectra_format = spectra_format)
-            if (length(class_list) == 0) {
-                class_list <- filepath_import
-            }
-        } else if ((length(folder_list) == 1 && folder_list != "") || (length(folder_list) >= 1)) {
-            class_list <- folder_list
-        }
         setTkProgressBar(program_progress_bar, value = 0.50, title = NULL, label = "50 %")
         # Generate the signal matrix
         peaklist <- intensityMatrix(peaks, spectra)
@@ -8899,6 +8934,8 @@ tkinsert(SNR_entry, "end", "3")
 peaks_filtering_threshold_percent_label <- tklabel(window, text="Peak filtering\nthreshold\nfrequency percentage", font = button_font, bg = "white", width = 20)
 peaks_filtering_threshold_percent_entry <- tkentry(window, textvariable = peaks_filtering_threshold_percent, font = entry_font, bg = "white", width = 5, justify = "center")
 tkinsert(peaks_filtering_threshold_percent_entry, "end", "5")
+# Peaks filtering mode
+peak_filtering_mode_entry <- tkbutton(window, text="PEAK FILTERING\nMODE", command = peak_filtering_mode_choice, font = button_font, bg = "white", width = 20)
 # Peaks deisotoping
 peaks_deisotoping_entry <- tkbutton(window, text="PEAK\nDEISOTOPING", command = peaks_deisotoping_choice, font = button_font, bg = "white", width = 20)
 # Intensity percentage threshold
@@ -8941,6 +8978,7 @@ download_updates_button <- tkbutton(window, text="DOWNLOAD\nUPDATE...", command 
 file_type_export_value_label <- tklabel(window, text = file_type_export, font = label_font, bg = "white", width = 20)
 peak_picking_mode_value_label <- tklabel(window, text = peak_picking_mode_value, font = label_font, bg = "white", width = 20)
 peak_picking_algorithm_value_label <- tklabel(window, text = peak_picking_algorithm_value, font = label_font, bg = "white", width = 20, height = 2)
+peak_filtering_mode_value_label <- tklabel(window, text = peak_filtering_mode_value, font = label_font, bg = "white", width = 20)
 peaks_deisotoping_value_label <- tklabel(window, text = peaks_deisotoping_value, font = label_font, bg = "white", width = 20)
 low_intensity_peak_removal_threshold_method_value_label <- tklabel(window, text = low_intensity_peak_removal_threshold_method_value, font = label_font, bg = "white", width = 20)
 spectra_format_value_label <- tklabel(window, text = spectra_format_value, font = label_font, bg = "white", width = 20)
@@ -8953,41 +8991,44 @@ check_for_updates_value_label <- tklabel(window, text = check_for_updates_value,
 #window_scrollbar <- tkscrollbar(window, command = function(...)tkyview(window,...))
 # tkgrid
 tkgrid(title_label, row = 1, column = 1, padx = c(20, 20), pady = c(20, 20), columnspan = 4)
-tkgrid(select_samples_button, row = 7, column = 1, padx = c(10, 10), pady = c(10, 10))
-tkgrid(browse_output_button, row = 7, column = 2, padx = c(10, 10), pady = c(10, 10))
-tkgrid(set_file_name_entry, row = 7, column = 3, padx = c(10, 10), pady = c(10, 10))
-tkgrid(set_file_name_label, row = 7, column = 4, padx = c(10, 10), pady = c(10, 10))
+tkgrid(select_samples_button, row = 8, column = 1, padx = c(10, 10), pady = c(10, 10))
+tkgrid(browse_output_button, row = 8, column = 2, padx = c(10, 10), pady = c(10, 10))
+tkgrid(set_file_name_entry, row = 8, column = 3, padx = c(10, 10), pady = c(10, 10))
+tkgrid(set_file_name_label, row = 8, column = 4, padx = c(10, 10), pady = c(10, 10))
 tkgrid(peak_picking_mode_entry, row = 3, column = 1, padx = c(10, 10), pady = c(10, 10))
 tkgrid(peak_picking_mode_value_label, row = 3, column = 2, padx = c(10, 10), pady = c(10, 10))
 tkgrid(signals_to_take_label, row = 3, column = 3, padx = c(10, 10), pady = c(10, 10))
 tkgrid(signals_to_take_entry, row = 3, column = 4, padx = c(10, 10), pady = c(10, 10))
 tkgrid(SNR_label, row = 2, column = 5, padx = c(10, 10), pady = c(10, 10))
 tkgrid(SNR_entry, row = 2, column = 6, padx = c(10, 10), pady = c(10, 10))
-tkgrid(peaks_filtering_threshold_percent_label, row = 4, column = 1, padx = c(10, 10), pady = c(10, 10))
-tkgrid(peaks_filtering_threshold_percent_entry, row = 4, column = 2, padx = c(10, 10), pady = c(10, 10))
+tkgrid(peaks_filtering_threshold_percent_label, row = 5, column = 2, padx = c(10, 10), pady = c(10, 10))
+tkgrid(peaks_filtering_threshold_percent_entry, row = 5, column = 3, padx = c(10, 10), pady = c(10, 10))
+tkgrid(peak_filtering_mode_entry, row = 5, column = 4, padx = c(10, 10), pady = c(10, 10))
+tkgrid(peak_filtering_mode_value_label, row = 5, column = 5, padx = c(10, 10), pady = c(10, 10))
 tkgrid(peaks_deisotoping_entry, row = 3, column = 5, padx = c(10, 10), pady = c(10, 10))
 tkgrid(peaks_deisotoping_value_label, row = 3, column = 6, padx = c(10, 10), pady = c(10, 10))
-tkgrid(low_intensity_peak_removal_threshold_percent_label, row = 4, column = 3, padx = c(10, 10), pady = c(10, 10))
-tkgrid(low_intensity_peak_removal_threshold_percent_entry, row = 4, column = 4, padx = c(10, 10), pady = c(10, 10))
-tkgrid(low_intensity_peak_removal_threshold_method_entry, row = 4, column = 5, padx = c(10, 10), pady = c(10, 10))
-tkgrid(low_intensity_peak_removal_threshold_method_value_label, row = 4, column = 6, padx = c(10, 10), pady = c(10, 10))
+tkgrid(low_intensity_peak_removal_threshold_percent_label, row = 4, column = 2, padx = c(10, 10), pady = c(10, 10))
+tkgrid(low_intensity_peak_removal_threshold_percent_entry, row = 4, column = 3, padx = c(10, 10), pady = c(10, 10))
+tkgrid(low_intensity_peak_removal_threshold_method_entry, row = 4, column = 4, padx = c(10, 10), pady = c(10, 10))
+tkgrid(low_intensity_peak_removal_threshold_method_value_label, row = 4, column = 5, padx = c(10, 10), pady = c(10, 10))
 tkgrid(peak_picking_algorithm_entry, row = 2, column = 3, padx = c(10, 10), pady = c(10, 10))
 tkgrid(peak_picking_algorithm_value_label, row = 2, column = 4, padx = c(10, 10), pady = c(10, 10))
 tkgrid(spectra_format_entry, row = 2, column = 1, padx = c(10, 10), pady = c(10, 10))
 tkgrid(spectra_format_value_label, row = 2, column = 2, padx = c(10, 10), pady = c(10, 10))
-tkgrid(file_type_export_entry, row = 7, column = 5, padx = c(10, 10), pady = c(10, 10))
-tkgrid(file_type_export_value_label, row = 7, column = 6, padx = c(10, 10), pady = c(10, 10))
-tkgrid(average_replicates_button, row = 6, column = 1, padx = c(10, 10), pady = c(10, 10))
-tkgrid(average_replicates_value_label, row = 6, column = 2, padx = c(10, 10), pady = c(10, 10))
-tkgrid(allow_parallelization_button, row = 6, column = 3, padx = c(10, 10), pady = c(10, 10))
-tkgrid(allow_parallelization_value_label, row = 6, column = 4, padx = c(10, 10), pady = c(10, 10))
-tkgrid(spectra_preprocessing_button, row = 6, column = 5, padx = c(10, 10), pady = c(10, 10))
-tkgrid(import_spectra_button, row = 8, column = 1, padx = c(10, 10), pady = c(10, 10))
-tkgrid(peak_picking_button, row = 8, column = 2, padx = c(10, 10), pady = c(10, 10))
-tkgrid(peaklist_export_button, row = 8, column = 3, padx = c(10, 10), pady = c(10, 10))
-tkgrid(signals_avg_and_sd_button, row = 8, column = 4, padx = c(10, 10), pady = c(10, 10))
-tkgrid(dump_spectra_files_button, row = 8, column = 5, padx = c(10, 10), pady = c(10, 10))
-tkgrid(end_session_button, row = 8, column = 6, padx = c(10, 10), pady = c(10, 10))
+tkgrid(file_type_export_entry, row = 8, column = 5, padx = c(10, 10), pady = c(10, 10))
+tkgrid(file_type_export_value_label, row = 8, column = 6, padx = c(10, 10), pady = c(10, 10))
+tkgrid(average_replicates_button, row = 7, column = 1, padx = c(10, 10), pady = c(10, 10))
+tkgrid(average_replicates_value_label, row = 7, column = 2, padx = c(10, 10), pady = c(10, 10))
+tkgrid(allow_parallelization_button, row = 7, column = 3, padx = c(10, 10), pady = c(10, 10))
+tkgrid(allow_parallelization_value_label, row = 7, column = 4, padx = c(10, 10), pady = c(10, 10))
+tkgrid(spectra_preprocessing_button, row = 7, column = 5, padx = c(10, 10), pady = c(10, 10))
+tkgrid(import_spectra_button, row = 9, column = 1, padx = c(10, 10), pady = c(10, 10))
+tkgrid(peak_picking_button, row = 9, column = 2, padx = c(10, 10), pady = c(10, 10))
+tkgrid(peaklist_export_button, row = 9, column = 3, padx = c(10, 10), pady = c(10, 10))
+tkgrid(signals_avg_and_sd_button, row = 9, column = 4, padx = c(10, 10), pady = c(10, 10))
+tkgrid(dump_spectra_files_button, row = 9, column = 5, padx = c(10, 10), pady = c(10, 10))
+tkgrid(end_session_button, row = 9, column = 6, padx = c(10, 10), pady = c(10, 10))
 tkgrid(download_updates_button, row = 1, column = 5, padx = c(10, 10), pady = c(10, 10))
 tkgrid(check_for_updates_value_label, row = 1, column = 6, padx = c(10, 10), pady = c(10, 10))
+
 
