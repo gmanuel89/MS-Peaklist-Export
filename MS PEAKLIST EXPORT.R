@@ -7693,7 +7693,7 @@ graph_MSI_segmentation <- function(filepath_imzml, preprocessing_parameters = li
 
 
 ### Program version (Specified by the program writer!!!!)
-R_script_version <- "2017.05.24.0"
+R_script_version <- "2017.05.24.1"
 ### GitHub URL where the R file is
 github_R_url <- "https://raw.githubusercontent.com/gmanuel89/MS-Peaklist-Export/master/MS%20PEAKLIST%20EXPORT.R"
 ### GitHub URL of the program's WIKI
@@ -8177,11 +8177,11 @@ preprocessing_window_function <- function() {
     tkgrid(normalization_button, row = 7, column = 1, padx = c(5, 5), pady = c(5, 5))
     tkgrid(normalization_mass_range_entry, row = 7, column = 2, padx = c(5, 5), pady = c(5, 5))
     tkgrid(normalization_value_label, row = 7, column = 3, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(preprocess_spectra_in_packages_of_label, row = 8, column = 1, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(preprocess_spectra_in_packages_of_entry, row = 8, column = 2, padx = c(5, 5), pady = c(5, 5))
+    tkgrid(preprocess_spectra_in_packages_of_label, row = 9, column = 1, padx = c(5, 5), pady = c(5, 5))
+    tkgrid(preprocess_spectra_in_packages_of_entry, row = 9, column = 2, padx = c(5, 5), pady = c(5, 5))
     tkgrid(spectral_alignment_button, row = 8, column = 1, padx = c(5, 5), pady = c(5, 5))
     tkgrid(spectral_alignment_value_label, row = 8, column = 2, padx = c(5, 5), pady = c(5, 5))
-    tkgrid(commit_preprocessing_button, row = 9, column = 1, padx = c(5, 5), pady = c(5, 5))
+    tkgrid(commit_preprocessing_button, row = 10, column = 1, columnspan = 3, padx = c(5, 5), pady = c(5, 5))
 }
 
 ##### File type (export)
@@ -8326,10 +8326,10 @@ peak_picking_mode_choice <- function() {
 ##### Peak picking algorithm
 peak_picking_algorithm_choice <- function() {
     # Catch the value from the menu
-    peak_picking_algorithm <- select.list(c("MAD","SuperSmoother"), title = "Choose", multiple = FALSE, preselect = "MAD")
+    peak_picking_algorithm <- select.list(c("SuperSmoother", "MAD"), title = "Choose", multiple = FALSE, preselect = "SuperSmoother")
     # Default
     if (peak_picking_algorithm == "") {
-        peak_picking_algorithm <- "MAD"
+        peak_picking_algorithm <- "SuperSmoother"
     }
     # Set the value of the displaying label
     peak_picking_algorithm_value <- peak_picking_algorithm
@@ -9141,3 +9141,4 @@ tkgrid(check_for_updates_value_label, row = 1, column = 6, padx = c(10, 10), pad
 
 
 ################################################################################
+
