@@ -1699,7 +1699,7 @@ replace_sample_name <- function(spectra, spectra_format = "imzml", allow_paralle
 
 #################################################### SPECTRA GROUPING (CLASSES)
 # The functions takes a list of spectra (MALDIquant) and generates a list of representative spectra, averaging spectra according to the class they belong to, generating one average spectrum per class.
-group_spectra_class <- function(spectra, class_list, grouping_method = "mean", spectra_format = "imzml", class_in_file_path = TRUE, class_in_file_name = FALSE, tof_mode = "linear", preprocessing_parameters = list(mass_range = NULL, transformation_algorithm = NULL, smoothing_algorithm = "SavitzkyGolay", smoothing_strength = "medium", baseline_subtraction_algorithm = "SNIP", baseline_subtraction_algorithm_parameter = 100, normalization_algorithm = "TIC", normalization_mass_range = NULL, preprocess_spectra_in_packages_of = 0, spectral_alignment_algorithm = "cubic", spectral_alignment_reference = "auto"), allow_parallelization = FALSE) {
+group_spectra_class <- function(spectra, class_list, grouping_method = "mean", spectra_format = "imzml", class_in_file_path = TRUE, class_in_file_name = FALSE, tof_mode = "linear", preprocessing_parameters = list(mass_range = NULL, transformation_algorithm = NULL, smoothing_algorithm = "SavitzkyGolay", smoothing_strength = "medium", baseline_subtraction_algorithm = "SNIP", baseline_subtraction_algorithm_parameter = 100, normalization_algorithm = "TIC", normalization_mass_range = NULL, preprocess_spectra_in_packages_of = 0, spectral_alignment_algorithm = "cubic", spectral_alignment_reference = "average spectrum"), allow_parallelization = FALSE) {
     ##### Spectral preprocessing
     if (!is.null(preprocessing_parameters) && is.list(preprocessing_parameters) && length(preprocessing_parameters) > 0) {
         spectra <- preprocess_spectra(spectra, tof_mode = tof_mode, preprocessing_parameters = preprocessing_parameters, allow_parallelization = allow_parallelization)
@@ -1994,7 +1994,7 @@ plot_spectra <- function(spectra, mass_range = NULL) {
 # The function allows to select some additional parameters of the preprocessing.
 # This version of the function whould be faster because each element of the spectral list is subjected to all the preprocessing step.
 # If an algorithm is set to NULL, that preprocessing step will not be performed.
-preprocess_spectra <- function(spectra, tof_mode = "linear", preprocessing_parameters = list(mass_range = NULL, transformation_algorithm = NULL, smoothing_algorithm = "SavitzkyGolay", smoothing_strength = "medium", baseline_subtraction_algorithm = "SNIP", baseline_subtraction_algorithm_parameter = 100, normalization_algorithm = "TIC", normalization_mass_range = NULL, preprocess_spectra_in_packages_of = 0, spectral_alignment_algorithm = NULL, spectral_alignment_reference = "auto"), allow_parallelization = FALSE) {
+preprocess_spectra <- function(spectra, tof_mode = "linear", preprocessing_parameters = list(mass_range = NULL, transformation_algorithm = NULL, smoothing_algorithm = "SavitzkyGolay", smoothing_strength = "medium", baseline_subtraction_algorithm = "SNIP", baseline_subtraction_algorithm_parameter = 100, normalization_algorithm = "TIC", normalization_mass_range = NULL, preprocess_spectra_in_packages_of = 0, spectral_alignment_algorithm = NULL, spectral_alignment_reference = "average_spectrum"), allow_parallelization = FALSE) {
     ##### Load the required libraries
     install_and_load_required_packages(c("MALDIquant", "XML", "parallel"))
     ##### Rename the trim function
@@ -2200,7 +2200,7 @@ preprocess_spectra <- function(spectra, tof_mode = "linear", preprocessing_param
 
 ############################################################# SPECTRAL ALIGNMENT
 # The function allows to perform the alignment among spectra. By selecting 'auto', the reference peaks will be automatically determined; if 'average spectrum' is selected, the reference peaklist is the peaklist of the average spectrum; if 'skyline spectrum' is selected, the reference peaklist is the peaklist of the skyline spectrum.
-align_spectra <- function(spectra, spectral_alignment_algorithm = "cubic", spectral_alignment_reference = "auto", tof_mode = "linear", deisotope_peaklist = FALSE) {
+align_spectra <- function(spectra, spectral_alignment_algorithm = "cubic", spectral_alignment_reference = "average spectrum", tof_mode = "linear", deisotope_peaklist = FALSE) {
     # Perform only if a method is specified
     if (!is.null(spectral_alignment_algorithm)) {
         if (isMassSpectrumList(spectra)) {
@@ -2219,16 +2219,16 @@ align_spectra <- function(spectra, spectral_alignment_algorithm = "cubic", spect
                 # Ganerate the average spectrum
                 average_spectrum <- averageMassSpectra(spectra, method = "mean")
                 # Preprocess the average spectrum
-                if (tof_mode == "reflectron") {
+                if (tof_mode == "reflectron" || tof_mode == "reflector" || tof_mode == "R") {
                     smoothing_algorithm_avg <- NULL
                 } else {
                     smoothing_algorithm_avg <- "SavitzkyGolay"
                 }
-                average_spectrum <- preprocess_spectra(average_spectrum, tof_mode = tof_mode, preprocessing_parameters = list(mass_range = NULL, transformation_algorithm = NULL, smoothing_algorithm = smoothing_algorithm_avg, smoothing_strength = "medium", baseline_subtraction_algorithm = "SNIP", baseline_subtraction_algorithm_parameter = 200, normalization_algorithm = "TIC", normalization_mass_range = NULL, preprocess_spectra_in_packages_of = 0, spectral_alignment_algorithm = NULL, spectral_alignment_reference = "auto"))
+                average_spectrum <- preprocess_spectra(average_spectrum, tof_mode = tof_mode, preprocessing_parameters = list(mass_range = NULL, transformation_algorithm = NULL, smoothing_algorithm = smoothing_algorithm_avg, smoothing_strength = "medium", baseline_subtraction_algorithm = "SNIP", baseline_subtraction_algorithm_parameter = 200, normalization_algorithm = "TIC", normalization_mass_range = NULL, preprocess_spectra_in_packages_of = 0, spectral_alignment_algorithm = NULL))
                 # Detect peaks onto the average spectrum: refference peaklist
                 average_spectrum_peaks <- detectPeaks(average_spectrum, halfWindowSize = half_window_alignment, method = "MAD", SNR = 2)
                 # Deisotope peaklist
-                if (deisotope_peaklist == TRUE) {
+                if (deisotope_peaklist == TRUE && (tof_mode == "reflectron" || tof_mode == "reflector" || tof_mode == "R")) {
                     average_spectrum_peaks <- deisotope_peaks(average_spectrum_peaks)
                 }
                 # Align the spectra
@@ -2238,7 +2238,7 @@ align_spectra <- function(spectra, spectral_alignment_algorithm = "cubic", spect
                 # Ganerate the skyline spectrum
                 skyline_spectrum <- averageMassSpectra(spectra, method = "sum")
                 # Preprocess the skyline spectrum
-                if (tof_mode == "reflectron") {
+                if (tof_mode == "reflectron" || tof_mode == "reflector" || tof_mode == "R") {
                     smoothing_algorithm_skyline <- NULL
                 } else {
                     smoothing_algorithm_skyline <- "SavitzkyGolay"
@@ -2247,7 +2247,7 @@ align_spectra <- function(spectra, spectral_alignment_algorithm = "cubic", spect
                 # Detect peaks onto the skyline spectrum: refference peaklist
                 skyline_spectrum_peaks <- detectPeaks(skyline_spectrum, halfWindowSize = half_window_alignment, method = "MAD", SNR = 2)
                 # Deisotope peaklist
-                if (deisotope_peaklist == TRUE) {
+                if (deisotope_peaklist == TRUE && (tof_mode == "reflectron" || tof_mode == "reflector" || tof_mode == "R")) {
                     skyline_spectrum_peaks <- deisotope_peaks(skyline_spectrum_peaks)
                 }
                 # Align the spectra
@@ -7654,6 +7654,7 @@ graph_MSI_segmentation <- function(filepath_imzml, preprocessing_parameters = li
 
 
 
+
 ####################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################
 
 
@@ -7693,7 +7694,7 @@ graph_MSI_segmentation <- function(filepath_imzml, preprocessing_parameters = li
 
 
 ### Program version (Specified by the program writer!!!!)
-R_script_version <- "2017.05.24.1"
+R_script_version <- "2017.05.24.2"
 ### GitHub URL where the R file is
 github_R_url <- "https://raw.githubusercontent.com/gmanuel89/MS-Peaklist-Export/master/MS%20PEAKLIST%20EXPORT.R"
 ### GitHub URL of the program's WIKI
@@ -7739,7 +7740,7 @@ preprocess_spectra_in_packages_of <- 0
 mass_range <- c(3000,15000)
 average_replicates <- FALSE
 spectral_alignment_algorithm <- NULL
-spectral_alignment_reference <- "auto"
+spectral_alignment_reference <- "average spectrum"
 peaks_deisotoping <- FALSE
 peak_filtering_mode <- "whole dataset"
 
@@ -8055,9 +8056,9 @@ preprocessing_window_function <- function() {
         }
         ## Ask for the reference peaklist
         if (!is.null(spectral_alignment_algorithm)) {
-            spectral_alignment_reference <- select.list(c("auto","average spectrum", "skyline spectrum"), title = "Spectral alignment reference", multiple = FALSE, preselect = "auto")
+            spectral_alignment_reference <- select.list(c("auto","average spectrum", "skyline spectrum"), title = "Spectral alignment reference", multiple = FALSE, preselect = "average spectrum")
             if (spectral_alignment_reference == "") {
-                spectral_alignment_reference <- "auto"
+                spectral_alignment_reference <- "average spectrum"
             }
         } else {
             spectral_alignment_reference <- NULL
@@ -9141,4 +9142,5 @@ tkgrid(check_for_updates_value_label, row = 1, column = 6, padx = c(10, 10), pad
 
 
 ################################################################################
+
 
