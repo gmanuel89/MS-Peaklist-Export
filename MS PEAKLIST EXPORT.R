@@ -1,4 +1,4 @@
-#################### FUNCTIONS - MASS SPECTROMETRY 2017.05.23 ##################
+#################### FUNCTIONS - MASS SPECTROMETRY 2017.05.25 ##################
 
 
 # Clear the console
@@ -766,77 +766,6 @@ read_spectra_files <- function(folder, spectra_format = "imzml", full_path = TRU
     }
     return(spectra_files)
 }
-
-
-
-
-
-################################################################################
-
-
-
-
-
-######################### REPLACE THE SNR WITH THE STDEV IN THE PEAKS
-# This function computes the standard deviation of each peak of an average spectrum peaklist, by replacing the existing SNR slot with the SD or CV: all the peaks (average and dataset) are aligned and each peak of the average peaklist is searched across the dataset thanks to the intensity matrix.
-replace_SNR_in_avg_peaklist <- function (spectra, peak_picking_algorithm = "SuperSmoother", SNR = 5, tof_mode = "linear", tolerance_ppm = 2000, spectra_format = "imzml", replace_snr_with = "std") {
-    install_and_load_required_packages(c("MALDIquant", "XML", "stats"))
-    # Rename the trim function
-    trim_spectra <- get(x = "trim", pos = "package:MALDIquant")
-    # Check if it is not a single spectrum
-    # If the spectra are many...
-    if (length(spectra) > 0 && isMassSpectrumList(spectra)) {
-        # Average the spectra
-        avg_spectrum <- averageMassSpectra(spectra, method = "mean")
-        avg_spectrum <- removeBaseline(avg_spectrum, method = "TopHat")
-        avg_spectrum <- calibrateIntensity(avg_spectrum, method = "TIC")
-        # Peak picking
-        peaks <- peak_picking(spectra, peak_picking_algorithm = peak_picking_algorithm, tof_mode = tof_mode, SNR = SNR)
-        peaks_avg <- peak_picking(avg_spectrum, peak_picking_algorithm = peak_picking_algorithm, tof_mode = tof_mode, SNR = SNR)
-        # Merge for the alignment
-        global_peaks <- append(peaks_avg, peaks)
-        global_peaks <- align_and_filter_peaks(global_peaks, tof_mode = tof_mode, peak_filtering_frequency_threshold_percent = 5)
-        peaks_avg <- global_peaks[[1]]
-        peaks <- global_peaks [2:length(global_peaks)]
-        # Compute the intensity matrix
-        intensity_matrix <- intensityMatrix(peaks, spectra)
-        # Scroll the peaks of the average peaklist...
-        for (p in 1:length(peaks_avg@mass)) {
-            # Search for the column in the intensity_matrix
-            for (z in 1:ncol(intensity_matrix)) {
-                # Match...
-                if (peaks_avg@mass[p] == colnames(intensity_matrix)[z]) {
-                    # Create an empty vector where to allocate the intensity of this peak into the dataset
-                    intensity_vector <- intensity_matrix[,z]
-                    # Compute the standard deviation
-                    if (replace_snr_with == "std" || replace_snr_with == "sd") {
-                        std_int <- sd(intensity_vector)
-                        # Replacement
-                        peaks_avg@snr[p] <- std_int
-                    }
-                    if (replace_snr_with == "cv" || replace_snr_with == "CV") {
-                        std_int <- sd(intensity_vector)
-                        mean_int <- mean(intensity_vector)
-                        cv_int <- std_int / mean_int
-                        # Replacement
-                        peaks_avg@snr[p] <- cv_int
-                    }
-                    # Save time avoiding to scroll to the end when found
-                    break
-                } else {peaks_avg@snr[p] <- NaN}
-            }
-        }
-        return (peaks_avg)
-    } else {
-        return(print("The spectra list is empty or the spectra list contains only one spectrum"))
-    }
-}
-
-
-
-
-
-################################################################################
 
 
 
@@ -2351,7 +2280,7 @@ average_spectrum_bars <- function(spectra, SNR = 5, peak_picking_algorithm = "Su
 
 ############################################# MOST INTENSE PEAKS IN PEAK PICKING
 # This function returns a peak list containing only the most intense peaks per spectrum. If the input is a list of spectra, the function computes the peak picking and keeps only the most intense ones, if it's a list of peaklists, it applies the filtering function directly on the peaks.
-most_intense_signals <- function(spectra, signals_to_take = 20, tof_mode = "linear", peak_picking_algorithm = "SuperSmoother", allow_parallelization = FALSE, deisotope_peaklist = FALSE) {
+most_intense_signals <- function(spectra, signals_to_take = 20, tof_mode = "linear", peak_picking_algorithm = "SuperSmoother", allow_parallelization = FALSE, deisotope_peaklist = FALSE, envelope_peaklist = FALSE) {
     # Load the required libraries
     install_and_load_required_packages(c("parallel", "MALDIquant", "XML"))
     # Rename the trim function
@@ -2379,7 +2308,7 @@ most_intense_signals <- function(spectra, signals_to_take = 20, tof_mode = "line
     ########################################################################
     # Peak picking
     if (isMassSpectrumList(spectra) || isMassSpectrum(spectra)) {
-        peaks <- peak_picking(spectra, peak_picking_algorithm = peak_picking_algorithm, tof_mode = tof_mode, SNR = 3, allow_parallelization = allow_parallelization, deisotope_peaklist = deisotope_peaklist)
+        peaks <- peak_picking(spectra, peak_picking_algorithm = peak_picking_algorithm, tof_mode = tof_mode, SNR = 3, allow_parallelization = allow_parallelization, deisotope_peaklist = deisotope_peaklist, envelope_peaklist = envelope_peaklist)
     } else if (isMassPeaksList(spectra) || isMassPeaks(spectra)) {
         peaks <- spectra
     }
@@ -2497,8 +2426,13 @@ average_replicates_by_folder <- function(spectra, folder, spectra_format = "bruk
 
 
 ################################################################### PEAK PICKING
-# This function takes a list of spectra (MALDIquant) and computes the peak picking.
-peak_picking <- function(spectra, peak_picking_algorithm = "SuperSmoother", tof_mode = "linear", SNR = 3, allow_parallelization = FALSE, deisotope_peaklist = FALSE) {
+# This function takes a list of spectra (MALDIquant) and computes the peak picking. It computes also the peak deisotoping or enveloping.
+peak_picking <- function(spectra, peak_picking_algorithm = "SuperSmoother", tof_mode = "linear", SNR = 3, allow_parallelization = FALSE, deisotope_peaklist = FALSE, envelope_peaklist = FALSE) {
+    ###### Fix the conflicting values
+    if (envelope_peaklist == TRUE && deisotope_peaklist == TRUE) {
+        envelope_peaklist <- FALSE
+        deisotope_peaklist <- TRUE
+    }
     ########## Load the required libraries
     install_and_load_required_packages(c("MALDIquant", "parallel", "XML"))
     ##### TOF-MODE
@@ -2536,8 +2470,12 @@ peak_picking <- function(spectra, peak_picking_algorithm = "SuperSmoother", tof_
         }
     }
     ##### Deisotope peaklist
-    if (deisotope_peaklist == TRUE && (tof_mode == "reflectron" || tof_mode == "reflector" || tof_mode == "R")) {
+    if ((deisotope_peaklist == TRUE && envelope_peaklist == FALSE) && (tof_mode == "reflectron" || tof_mode == "reflector" || tof_mode == "R")) {
         peaks <- deisotope_peaks(peaks, pattern_model_correlation = 0.95, isotopic_tolerance = 10^(-4), isotope_pattern_distance = 1.00235, isotopic_pattern_size = 3L:10L, allow_parallelization = allow_parallelization)
+    }
+    ##### Envelope peaklist
+    if ((envelope_peaklist == TRUE && deisotope_peaklist == FALSE) && (tof_mode == "reflectron" || tof_mode == "reflector" || tof_mode == "R")) {
+        peaks <- envelope_peaks(peaks, allow_parallelization = allow_parallelization)
     }
     ##### Return
     return(peaks)
@@ -2593,6 +2531,94 @@ deisotope_peaks <- function(peaks, pattern_model_correlation = 0.95, isotopic_to
     # Return
     return(peaks_deisotoped)
 }
+
+
+
+
+
+################################################################### PEAK PICKING
+# This function takes a list of peaks (MALDIquant) and returns the same peak list without isotopic clusters, only the most intense peaks in the clusters.
+envelope_peaks <- function(peaks, allow_parallelization = FALSE) {
+    ##### Load the required packages
+    install_and_load_required_packages(c("MALDIquant", "parallel", "XML"))
+    ##### Function for lapply
+    envelope_peaklist_subfunction <- function(peaks) {
+        # Extract the m/z and intensity values
+        mz_values <- peaks@mass
+        intensity_values <- peaks@intensity
+        signals_to_keep <- numeric()
+        # Scroll the peaks...
+        for (int in 1:length(intensity_values)) {
+            # Take only the peaks with the highest intensity in the cluster
+            # If it is the first peak, check only the following ones
+            if (int == 1) {
+                if (intensity_values[int + 1] < intensity_values[int]) {
+                    signals_to_keep <- append(signals_to_keep, mz_values[int])
+                }
+            } else if (int == length(intensity_values)) {
+                # If it is the last peak, check only the previous ones
+                if (intensity_values[int - 1] < intensity_values[int]) {
+                    signals_to_keep <- append(signals_to_keep, mz_values[int])
+                }
+            } else {
+                # If it is the random peak, check both the previous and the following ones
+                if (intensity_values[int - 1] < intensity_values[int] && intensity_values[int + 1] < intensity_values[int]) {
+                    signals_to_keep <- append(signals_to_keep, mz_values[int])
+                }
+            }
+        }
+        # Identify which are the signals to keep
+        signals_to_keep_ID <- which(mz_values %in% signals_to_keep)
+        mz_to_keep <- mz_values[signals_to_keep_ID]
+        int_to_keep <- intensity_values[signals_to_keep_ID]
+        snr_to_keep <- peaks@snr[signals_to_keep_ID]
+        # Put the values back into the peaks element
+        peaks@mass <- mz_to_keep
+        peaks@intensity <- int_to_keep
+        peaks@snr <- snr_to_keep
+        return(peaks)
+    }
+    ##### Multiple peaks
+    if (isMassPeaksList(peaks)) {
+        ##### Multiple cores
+        if (allow_parallelization == TRUE) {
+            # Detect the number of cores
+            cpu_thread_number <- detectCores(logical = TRUE)
+            if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
+                cpu_thread_number <- cpu_thread_number / 2
+                peaks_enveloped <- mclapply(peaks, FUN = function(peaks) envelope_peaklist_subfunction(peaks), mc.cores = cpu_thread_number)
+            } else if (Sys.info()[1] == "Windows") {
+                cpu_thread_number <- cpu_thread_number - 1
+                # Make the CPU cluster for parallelisation
+                cl <- makeCluster(cpu_thread_number)
+                # Make the cluster use the custom functions and the package functions along with their parameters
+                clusterEvalQ(cl, {library(MALDIquant)})
+                # Pass the variables to the cluster for running the function
+                clusterExport(cl = cl, varlist = "peaks", envir = environment())
+                # Apply the multicore function
+                peaks_enveloped <- parLapply(cl, peaks, fun = function(peaks) envelope_peaklist_subfunction(peaks))
+                stopCluster(cl)
+            } else {
+                # Run the algorithm
+                peaks_enveloped <- lapply(peaks, FUN = function(peaks) envelope_peaklist_subfunction(peaks))
+            }
+        } else {
+            # Run the algorithm
+            peaks_enveloped <- lapply(peaks, FUN = function(peaks) envelope_peaklist_subfunction(peaks))
+        }
+    } else {
+        # Run the algorithm
+        peaks_enveloped <- envelope_peaklist_subfunction(peaks)
+    }
+    # Return
+    return(peaks_enveloped)
+}
+
+
+
+
+
+################################################################################
 
 
 
@@ -6266,13 +6292,13 @@ spectral_typer_score_similarity_index <- function(spectra_database, spectra_test
 
 ################################################ SPECTRAL VARIABILITY ESTIMATION
 # The function takes a list of spectra and calculates the variability within the spectral dataset provided, in terms of the mean of the coefficients of variation for all the signals.
-spectral_variability_estimation <- function(spectra, folder_list = NULL, peak_picking_SNR = 3, peak_picking_algorithm = "SuperSmoother", spectra_format = "xmass", peak_picking_mode = "all", signals_to_take = 25, tof_mode = "linear", peaks_deisotoping = FALSE, allow_parallelization = FALSE) {
+spectral_variability_estimation <- function(spectra, folder_list = NULL, peak_picking_SNR = 3, peak_picking_algorithm = "SuperSmoother", spectra_format = "xmass", peak_picking_mode = "all", signals_to_take = 25, tof_mode = "linear", peak_deisotoping = FALSE, allow_parallelization = FALSE) {
     install_and_load_required_packages("MALDIquant")
     ### Peak picking
     if (peak_picking_mode == "most intense") {
         peaks <- most_intense_signals(spectra, signals_to_take = signals_to_take, tof_mode = tof_mode)
     } else if (peak_picking_mode == "all") {
-        peaks <- peak_picking(spectra, peak_picking_algorithm = peak_picking_algorithm, SNR = peak_picking_SNR, tof_mode = tof_mode, allow_parallelization = allow_parallelization, deisotope_peaklist = peaks_deisotoping)
+        peaks <- peak_picking(spectra, peak_picking_algorithm = peak_picking_algorithm, SNR = peak_picking_SNR, tof_mode = tof_mode, allow_parallelization = allow_parallelization, deisotope_peaklist = peak_deisotoping)
     }
     peaks <- align_and_filter_peaks(peaks, peak_picking_algorithm = peak_picking_algorithm, tof_mode = tof_mode, peak_filtering_frequency_threshold_percent = 0, low_intensity_peak_removal_threshold_percent = 0)
     ### Replace the name of the spectra/peaks with the class (to identify the spectra under the same entry)
@@ -7694,7 +7720,7 @@ graph_MSI_segmentation <- function(filepath_imzml, preprocessing_parameters = li
 
 
 ### Program version (Specified by the program writer!!!!)
-R_script_version <- "2017.05.24.2"
+R_script_version <- "2017.05.25.0"
 ### GitHub URL where the R file is
 github_R_url <- "https://raw.githubusercontent.com/gmanuel89/MS-Peaklist-Export/master/MS%20PEAKLIST%20EXPORT.R"
 ### GitHub URL of the program's WIKI
@@ -7702,7 +7728,7 @@ github_wiki_url <- "https://github.com/gmanuel89/MS-Peaklist-Export/wiki"
 ### Name of the file when downloaded
 script_file_name <- "MS PEAKLIST EXPORT"
 # Change log
-change_log <- "1. Fixed GUI\n2. Import TXT spectra allowed\n3. New name!!\n4. Classwise peak filtering"
+change_log <- "1. Fixed GUI\n2. Import TXT spectra allowed\n3. Peak enveloping\n4. Classwise peak filtering"
 
 
 
@@ -7741,7 +7767,8 @@ mass_range <- c(3000,15000)
 average_replicates <- FALSE
 spectral_alignment_algorithm <- NULL
 spectral_alignment_reference <- "average spectrum"
-peaks_deisotoping <- FALSE
+peak_deisotoping <- FALSE
+peak_enveloping <- FALSE
 peak_filtering_mode <- "whole dataset"
 
 
@@ -7757,7 +7784,7 @@ peak_picking_algorithm_value <- "Super Smoother"
 low_intensity_peak_removal_threshold_method_value <- "element-wise"
 spectra_format_value <- "imzML"
 allow_parallelization_value <- "NO"
-transform_data_value <- "NO"
+transform_data_value <- "None"
 smoothing_value <- paste("YES", "\n( ", "SavitzkyGolay", ",\n" , "medium", " )", sep = "")
 baseline_subtraction_value <- paste("YES", "\n( ", "SNIP", ",\nIterations:", "200", " )", sep = "")
 normalization_value <- paste("YES", "\n( ", "TIC", " )", sep = "")
@@ -7765,7 +7792,7 @@ average_replicates_value <- "NO"
 spectral_alignment_value <- "NO"
 spectral_alignment_algorithm_value <- ""
 spectral_alignment_reference_value <- ""
-peaks_deisotoping_value <- "NO"
+peak_deisotoping_enveloping_value <- "None"
 peak_filtering_mode_value <- "whole dataset"
 
 
@@ -7910,16 +7937,16 @@ preprocessing_window_function <- function() {
     # Transform the data
     transform_data_choice <- function() {
         # Ask for the algorithm
-        transform_data_algorithm <- select.list(c("sqrt", "log", "log2", "log10", "none"), title = "Data transformation", multiple = FALSE, preselect = "none")
+        transform_data_algorithm <- select.list(c("sqrt", "log", "log2", "log10", "None"), title = "Data transformation", multiple = FALSE, preselect = "None")
         # Default
-        if (transform_data_algorithm == "" || transform_data_algorithm == "none") {
+        if (transform_data_algorithm == "" || transform_data_algorithm == "None") {
             transform_data_algorithm <- NULL
         }
         # Set the value of the displaying label
         if (!is.null(transform_data_algorithm)) {
             transform_data_value <- paste0("YES", "\n( ", transform_data_algorithm, " )")
         } else {
-            transform_data_value <- "NO"
+            transform_data_value <- "None"
         }
         transform_data_value_label <- tklabel(preproc_window, text = transform_data_value, font = label_font, bg = "white", width = 20, height = 2)
         tkgrid(transform_data_value_label, row = 3, column = 2, padx = c(5, 5), pady = c(5, 5))
@@ -7930,12 +7957,12 @@ preprocessing_window_function <- function() {
     # Smoothing
     smoothing_choice <- function() {
         # Ask for the algorithm
-        smoothing_algorithm <- select.list(c("SavitzkyGolay","MovingAverage", "none"), title = "Smoothing algorithm", multiple = FALSE, preselect = "SavitzkyGolay")
+        smoothing_algorithm <- select.list(c("SavitzkyGolay","MovingAverage", "None"), title = "Smoothing algorithm", multiple = FALSE, preselect = "SavitzkyGolay")
         # Default
         if (smoothing_algorithm == "") {
             smoothing_algorithm <- "SavitzkyGolay"
         }
-        if (smoothing_algorithm == "none") {
+        if (smoothing_algorithm == "None") {
             smoothing_algorithm <- NULL
         }
         # Strength
@@ -7949,7 +7976,7 @@ preprocessing_window_function <- function() {
         if (!is.null(smoothing_algorithm)) {
             smoothing_value <- paste0("YES", "\n( ", smoothing_algorithm, ",\n" , smoothing_strength, " )")
         } else {
-            smoothing_value <- "NO"
+            smoothing_value <- "None"
         }
         smoothing_value_label <- tklabel(preproc_window, text = smoothing_value, font = label_font, bg = "white", width = 20, height = 3)
         tkgrid(smoothing_value_label, row = 4, column = 2, padx = c(5, 5), pady = c(5, 5))
@@ -7961,13 +7988,13 @@ preprocessing_window_function <- function() {
     # Baseline subtraction
     baseline_subtraction_choice <- function() {
         # Ask for the algorithm
-        baseline_subtraction_algorithm <- select.list(c("SNIP", "TopHat", "ConvexHull", "median", "none"), title = "Baseline subtraction algorithm", multiple = FALSE, preselect = "SNIP")
+        baseline_subtraction_algorithm <- select.list(c("SNIP", "TopHat", "ConvexHull", "median", "None"), title = "Baseline subtraction algorithm", multiple = FALSE, preselect = "SNIP")
         # Default
         if (baseline_subtraction_algorithm == "") {
             baseline_subtraction_algorithm <- "SNIP"
             baseline_subtraction_algorithm_parameter <- 200
         }
-        if (baseline_subtraction_algorithm == "none") {
+        if (baseline_subtraction_algorithm == "None") {
             baseline_subtraction_algorithm <- NULL
         }
         # SNIP
@@ -7994,7 +8021,7 @@ preprocessing_window_function <- function() {
         } else if (!is.null(baseline_subtraction_algorithm) && baseline_subtraction_algorithm == "ConvexHull") {
             baseline_subtraction_value <- paste0("YES", "\n( ", baseline_subtraction_algorithm, ")")
         } else {
-            baseline_subtraction_value <- "NO"
+            baseline_subtraction_value <- "None"
         }
         baseline_subtraction_value_label <- tklabel(preproc_window, text = baseline_subtraction_value, font = label_font, bg = "white", width = 20, height = 3)
         tkgrid(baseline_subtraction_value_label, row = 5, column = 3, padx = c(5, 5), pady = c(5, 5))
@@ -8006,11 +8033,11 @@ preprocessing_window_function <- function() {
     # Normalization
     normalization_choice <- function() {
         # Ask for the algorithm
-        normalization_algorithm <- select.list(c("TIC", "PQN", "median", "none"), title = "Normalization algorithm", multiple = FALSE, preselect = "TIC")
+        normalization_algorithm <- select.list(c("TIC", "PQN", "median", "None"), title = "Normalization algorithm", multiple = FALSE, preselect = "TIC")
         if (normalization_algorithm == "") {
             normalization_algorithm <- "TIC"
         }
-        if (normalization_algorithm == "none") {
+        if (normalization_algorithm == "None") {
             normalization_algorithm <- NULL
         }
         # TIC
@@ -8034,7 +8061,7 @@ preprocessing_window_function <- function() {
                 normalization_value <- paste0("YES", "\n( ", normalization_algorithm, " )")
             }
         } else {
-            normalization_value <- "NO"
+            normalization_value <- "None"
         }
         normalization_value_label <- tklabel(preproc_window, text = normalization_value, font = label_font, bg = "white", width = 20, height = 4)
         tkgrid(normalization_value_label, row = 7, column = 3, padx = c(5, 5), pady = c(5, 5))
@@ -8046,12 +8073,12 @@ preprocessing_window_function <- function() {
     # Spectral alignment
     spectral_alignment_choice <- function() {
         # Ask for the algorithm
-        spectral_alignment_algorithm <- select.list(c("cubic", "quadratic", "linear", "lowess", "none"), title = "Spectral alignment algorithm", multiple = FALSE, preselect = "cubic")
+        spectral_alignment_algorithm <- select.list(c("cubic", "quadratic", "linear", "lowess", "None"), title = "Spectral alignment algorithm", multiple = FALSE, preselect = "cubic")
         # Default
         if (spectral_alignment_algorithm == "") {
-            spectral_alignment_algorithm <- "none"
+            spectral_alignment_algorithm <- "None"
         }
-        if (spectral_alignment_algorithm == "none") {
+        if (spectral_alignment_algorithm == "None") {
             spectral_alignment_algorithm <- NULL
         }
         ## Ask for the reference peaklist
@@ -8067,7 +8094,7 @@ preprocessing_window_function <- function() {
         if (!is.null(spectral_alignment_algorithm)) {
             spectral_alignment_value <- paste0("YES", "\n( ", spectral_alignment_algorithm, ",\n", spectral_alignment_reference, " )")
         } else {
-            spectral_alignment_value <- "NO"
+            spectral_alignment_value <- "None"
         }
         spectral_alignment_value_label <- tklabel(preproc_window, text = spectral_alignment_value, font = label_font, bg = "white", width = 20, height = 3)
         tkgrid(spectral_alignment_value_label, row = 8, column = 2, padx = c(5, 5), pady = c(5, 5))
@@ -8346,28 +8373,32 @@ peak_picking_algorithm_choice <- function() {
     .GlobalEnv$peak_picking_algorithm_value <- peak_picking_algorithm_value
 }
 
-##### Peaks deisotoping
-peaks_deisotoping_choice <- function() {
+##### Peaks deisotoping or enveloping
+peak_deisotoping_enveloping_choice <- function() {
     # Catch the value from the menu
-    peaks_deisotoping <- select.list(c("YES","NO"), title = "Choose", multiple = FALSE, preselect = "NO")
+    peak_deisotoping_enveloping <- select.list(c("Peak Deisotoping","Peak Enveloping", "None"), title = "Peak Deisotoping/Enveloping", multiple = FALSE, preselect = "Peak Deisotoping")
     # Default
-    if (peaks_deisotoping == "YES") {
-        peaks_deisotoping <- TRUE
+    if (peak_deisotoping_enveloping == "") {
+        peak_deisotoping_enveloping <- "Peak Deisotoping"
     }
-    if (peaks_deisotoping == "NO" || peaks_deisotoping == "") {
-        peaks_deisotoping <- FALSE
+    if (peak_deisotoping_enveloping == "Peak Deisotoping") {
+        peak_deisotoping <- TRUE
+        peak_enveloping <- FALSE
+    } else if (peak_deisotoping_enveloping == "Peak Enveloping") {
+        peak_deisotoping <- FALSE
+        peak_enveloping <- TRUE
+    } else if (peak_deisotoping_enveloping == "None") {
+        peak_deisotoping <- FALSE
+        peak_enveloping <- FALSE
     }
     # Set the value of the displaying label
-    if (peaks_deisotoping == TRUE) {
-        peaks_deisotoping_value <- "YES"
-    } else {
-        peaks_deisotoping_value <- "NO"
-    }
-    peaks_deisotoping_value_label <- tklabel(window, text = peaks_deisotoping_value, font = label_font, bg = "white", width = 20)
-    tkgrid(peaks_deisotoping_value_label, row = 3, column = 6, padx = c(10, 10), pady = c(10, 10))
+    peak_deisotoping_enveloping_value <- peak_deisotoping_enveloping
+    peak_deisotoping_enveloping_value_label <- tklabel(window, text = peak_deisotoping_enveloping_value, font = label_font, bg = "white", width = 20)
+    tkgrid(peak_deisotoping_enveloping_value_label, row = 3, column = 6, padx = c(10, 10), pady = c(10, 10))
     # Escape the function
-    .GlobalEnv$peaks_deisotoping <- peaks_deisotoping
-    .GlobalEnv$peaks_deisotoping_value <- peaks_deisotoping_value
+    .GlobalEnv$peak_deisotoping <- peak_deisotoping
+    .GlobalEnv$peak_enveloping <- peak_enveloping
+    .GlobalEnv$peak_deisotoping_enveloping_value <- peak_deisotoping_enveloping_value
 }
 
 ##### Multicore processing
@@ -8617,9 +8648,9 @@ peak_picking_function <- function() {
         SNR_value <- as.character(SNR)
         setTkProgressBar(peak_picking_progress_bar, value = 0.25, title = NULL, label = "25 %")
         if (peak_picking_mode == "most intense") {
-            peaks <- most_intense_signals(spectra, signals_to_take = signals_to_take, tof_mode = tof_mode, allow_parallelization = allow_parallelization, deisotope_peaklist = peaks_deisotoping)
+            peaks <- most_intense_signals(spectra, signals_to_take = signals_to_take, tof_mode = tof_mode, allow_parallelization = allow_parallelization, deisotope_peaklist = peak_deisotoping, envelope_peaklist = peak_enveloping)
         } else if (peak_picking_mode == "all") {
-            peaks <- peak_picking(spectra, peak_picking_algorithm = peak_picking_algorithm, SNR = SNR, tof_mode = tof_mode, allow_parallelization = allow_parallelization, deisotope_peaklist = peaks_deisotoping)
+            peaks <- peak_picking(spectra, peak_picking_algorithm = peak_picking_algorithm, SNR = SNR, tof_mode = tof_mode, allow_parallelization = allow_parallelization, deisotope_peaklist = peak_deisotoping, envelope_peaklist = peak_enveloping)
         }
         ## Peaks filtering threshold
         peaks_filtering_threshold_percent <- tclvalue(peaks_filtering_threshold_percent)
@@ -9044,7 +9075,7 @@ tkinsert(peaks_filtering_threshold_percent_entry, "end", "5")
 # Peaks filtering mode
 peak_filtering_mode_entry <- tkbutton(window, text="PEAK FILTERING\nMODE", command = peak_filtering_mode_choice, font = button_font, bg = "white", width = 20)
 # Peaks deisotoping
-peaks_deisotoping_entry <- tkbutton(window, text="PEAK\nDEISOTOPING", command = peaks_deisotoping_choice, font = button_font, bg = "white", width = 20)
+peak_deisotoping_entry <- tkbutton(window, text="PEAK\nDEISOTOPING\nor\nENVELOPING", command = peak_deisotoping_enveloping_choice, font = button_font, bg = "white", width = 20)
 # Intensity percentage threshold
 low_intensity_peak_removal_threshold_percent_label <- tklabel(window, text="Low-intensity peak\nremoval\npercentage threshold", font = button_font, bg = "white", width = 20)
 low_intensity_peak_removal_threshold_percent_entry <- tkentry(window, textvariable = low_intensity_peak_removal_threshold_percent, font = entry_font, bg = "white", width = 5, justify = "center")
@@ -9086,7 +9117,7 @@ file_type_export_value_label <- tklabel(window, text = file_type_export, font = 
 peak_picking_mode_value_label <- tklabel(window, text = peak_picking_mode_value, font = label_font, bg = "white", width = 20)
 peak_picking_algorithm_value_label <- tklabel(window, text = peak_picking_algorithm_value, font = label_font, bg = "white", width = 20, height = 2)
 peak_filtering_mode_value_label <- tklabel(window, text = peak_filtering_mode_value, font = label_font, bg = "white", width = 20)
-peaks_deisotoping_value_label <- tklabel(window, text = peaks_deisotoping_value, font = label_font, bg = "white", width = 20)
+peak_deisotoping_enveloping_value_label <- tklabel(window, text = peak_deisotoping_enveloping_value, font = label_font, bg = "white", width = 20)
 low_intensity_peak_removal_threshold_method_value_label <- tklabel(window, text = low_intensity_peak_removal_threshold_method_value, font = label_font, bg = "white", width = 20)
 spectra_format_value_label <- tklabel(window, text = spectra_format_value, font = label_font, bg = "white", width = 20)
 allow_parallelization_value_label <- tklabel(window, text = allow_parallelization_value, font = label_font, bg = "white", width = 20)
@@ -9112,8 +9143,8 @@ tkgrid(peaks_filtering_threshold_percent_label, row = 5, column = 2, padx = c(10
 tkgrid(peaks_filtering_threshold_percent_entry, row = 5, column = 3, padx = c(10, 10), pady = c(10, 10))
 tkgrid(peak_filtering_mode_entry, row = 5, column = 4, padx = c(10, 10), pady = c(10, 10))
 tkgrid(peak_filtering_mode_value_label, row = 5, column = 5, padx = c(10, 10), pady = c(10, 10))
-tkgrid(peaks_deisotoping_entry, row = 3, column = 5, padx = c(10, 10), pady = c(10, 10))
-tkgrid(peaks_deisotoping_value_label, row = 3, column = 6, padx = c(10, 10), pady = c(10, 10))
+tkgrid(peak_deisotoping_entry, row = 3, column = 5, padx = c(10, 10), pady = c(10, 10))
+tkgrid(peak_deisotoping_enveloping_value_label, row = 3, column = 6, padx = c(10, 10), pady = c(10, 10))
 tkgrid(low_intensity_peak_removal_threshold_percent_label, row = 4, column = 2, padx = c(10, 10), pady = c(10, 10))
 tkgrid(low_intensity_peak_removal_threshold_percent_entry, row = 4, column = 3, padx = c(10, 10), pady = c(10, 10))
 tkgrid(low_intensity_peak_removal_threshold_method_entry, row = 4, column = 4, padx = c(10, 10), pady = c(10, 10))
@@ -9142,5 +9173,3 @@ tkgrid(check_for_updates_value_label, row = 1, column = 6, padx = c(10, 10), pad
 
 
 ################################################################################
-
-
