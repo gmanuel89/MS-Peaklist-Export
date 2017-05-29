@@ -1988,19 +1988,19 @@ preprocess_spectra <- function(spectra, tof_mode = "linear", preprocessing_param
             if (!is.null(smoothing_algorithm) && smoothing_algorithm == "SavitzkyGolay") {
                 smoothing_half_window_size <- 3
             } else if (!is.null(smoothing_algorithm) && smoothing_algorithm == "MovingAverage") {
-                smoothing_half_window_size <- 0.6
+                smoothing_half_window_size <- 1
             }
         } else if (!is.null(smoothing_strength) && smoothing_strength == "strong") {
             if (!is.null(smoothing_algorithm) && smoothing_algorithm == "SavitzkyGolay") {
                 smoothing_half_window_size <- 6
             } else if (!is.null(smoothing_algorithm) && smoothing_algorithm == "MovingAverage") {
-                smoothing_half_window_size <- 1.2
+                smoothing_half_window_size <- 2
             }
         } else if (!is.null(smoothing_strength) && smoothing_strength == "stronger") {
             if (!is.null(smoothing_algorithm) && smoothing_algorithm == "SavitzkyGolay") {
                 smoothing_half_window_size <- 9
             } else if (!is.null(smoothing_algorithm) && smoothing_algorithm == "MovingAverage") {
-                smoothing_half_window_size <- 1.8
+                smoothing_half_window_size <- 3
             }
         }
     }
@@ -7770,6 +7770,7 @@ graph_MSI_segmentation <- function(filepath_imzml, preprocessing_parameters = li
 
 
 
+
 ####################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################
 
 
@@ -7809,7 +7810,7 @@ graph_MSI_segmentation <- function(filepath_imzml, preprocessing_parameters = li
 
 
 ### Program version (Specified by the program writer!!!!)
-R_script_version <- "2017.05.26.0"
+R_script_version <- "2017.05.29.0"
 ### GitHub URL where the R file is
 github_R_url <- "https://raw.githubusercontent.com/gmanuel89/MS-Peaklist-Export/master/MS%20PEAKLIST%20EXPORT.R"
 ### GitHub URL of the program's WIKI
@@ -7817,7 +7818,7 @@ github_wiki_url <- "https://github.com/gmanuel89/MS-Peaklist-Export/wiki"
 ### Name of the file when downloaded
 script_file_name <- "MS PEAKLIST EXPORT"
 # Change log
-change_log <- "1. Fixed GUI\n2. Import TXT spectra allowed\n3. Peak enveloping\n4. Classwise peak filtering\n4. Added the RMS normalization"
+change_log <- "1. Fixed GUI\n2. Import TXT spectra allowed\n3. Peak enveloping\n4. Classwise peak filtering\n4. Added the RMS normalization\n5. Dump parameters"
 
 
 
@@ -7859,13 +7860,14 @@ spectral_alignment_reference <- "average spectrum"
 peak_deisotoping <- FALSE
 peak_enveloping <- FALSE
 peak_filtering_mode <- "whole dataset"
+parameters_matrix <- NULL
 
 
 
 
 ################## Values of the variables (for displaying and dumping purposes)
 tof_mode_value <- "Linear"
-filepath_import_value <- NULL
+filepath_import_value <- ""
 output_folder_value <- output_folder
 spectra_format_value <- "imzML"
 peak_picking_mode_value <- "all"
@@ -7874,15 +7876,17 @@ low_intensity_peak_removal_threshold_method_value <- "element-wise"
 spectra_format_value <- "imzML"
 allow_parallelization_value <- "NO"
 transform_data_value <- "None"
-smoothing_value <- paste("YES", "\n( ", "SavitzkyGolay", ",\n" , "medium", " )", sep = "")
-baseline_subtraction_value <- paste("YES", "\n( ", "SNIP", ",\nIterations:", "200", " )", sep = "")
-normalization_value <- paste("YES", "\n( ", "TIC", " )", sep = "")
+smoothing_value <- paste0("YES", "\n( ", "Savitzky-Golay", ",\n" , "medium", " )")
+baseline_subtraction_value <- paste0("YES", "\n( ", "SNIP", ",\nIterations: ", "200", " )")
+normalization_value <- paste0("YES", "\n( ", "TIC", " )")
 average_replicates_value <- "NO"
 spectral_alignment_value <- "NO"
 spectral_alignment_algorithm_value <- ""
 spectral_alignment_reference_value <- ""
 peak_deisotoping_enveloping_value <- "None"
 peak_filtering_mode_value <- "whole dataset"
+signals_avg_and_sd_value <- "Not calculated"
+mass_range_value <- "3000, 15000"
 
 
 
@@ -8026,14 +8030,22 @@ preprocessing_window_function <- function() {
     # Transform the data
     transform_data_choice <- function() {
         # Ask for the algorithm
-        transform_data_algorithm <- select.list(c("sqrt", "log", "log2", "log10", "None"), title = "Data transformation", multiple = FALSE, preselect = "None")
-        # Default
-        if (transform_data_algorithm == "" || transform_data_algorithm == "None") {
+        transform_data_algorithm_input <- select.list(c("Square root", "Natural logarithm", "Logarithm base 2", "Decimal logarithm", "None"), title = "Data transformation", multiple = FALSE, preselect = "None")
+        # Default and fix
+        if (transform_data_algorithm_input == "Square root") {
+            transform_data_algorithm <- "sqrt"
+        } else if (transform_data_algorithm_input == "Natural logarithm") {
+            transform_data_algorithm <- "log"
+        } else if (transform_data_algorithm_input == "Logarithm base 2") {
+            transform_data_algorithm <- "log2"
+        } else if (transform_data_algorithm_input == "Decimal logarithm") {
+            transform_data_algorithm <- "log10"
+        } else if (transform_data_algorithm_input == "" || transform_data_algorithm_input == "None") {
             transform_data_algorithm <- NULL
         }
         # Set the value of the displaying label
         if (!is.null(transform_data_algorithm)) {
-            transform_data_value <- paste0("YES", "\n( ", transform_data_algorithm, " )")
+            transform_data_value <- paste0("YES", "\n( ", transform_data_algorithm_input, " )")
         } else {
             transform_data_value <- "None"
         }
@@ -8046,24 +8058,25 @@ preprocessing_window_function <- function() {
     # Smoothing
     smoothing_choice <- function() {
         # Ask for the algorithm
-        smoothing_algorithm <- select.list(c("SavitzkyGolay","MovingAverage", "None"), title = "Smoothing algorithm", multiple = FALSE, preselect = "SavitzkyGolay")
-        # Default
-        if (smoothing_algorithm == "") {
+        smoothing_algorithm_input <- select.list(c("Savitzky-Golay","Moving Average", "None"), title = "Smoothing algorithm", multiple = FALSE, preselect = "SavitzkyGolay")
+        # Default and fix
+        if (smoothing_algorithm_input == "" || smoothing_algorithm_input == "Savitzky-Golay") {
             smoothing_algorithm <- "SavitzkyGolay"
-        }
-        if (smoothing_algorithm == "None") {
+        } else if (smoothing_algorithm_input == "Moving Average") {
+            smoothing_algorithm <- "MovingAverage"
+        } else if (smoothing_algorithm_input == "None") {
             smoothing_algorithm <- NULL
         }
         # Strength
         if (!is.null(smoothing_algorithm)) {
-            smoothing_strength <- select.list(c("medium","strong","stronger"), title = "Smoothing strength", multiple = FALSE, preselect = "medium")
+            smoothing_strength <- select.list(c("medium", "strong", "stronger"), title = "Smoothing strength", multiple = FALSE, preselect = "medium")
             if (smoothing_strength == "") {
                 smoothing_strength <- "medium"
             }
         }
         # Set the value of the displaying label
         if (!is.null(smoothing_algorithm)) {
-            smoothing_value <- paste0("YES", "\n( ", smoothing_algorithm, ",\n" , smoothing_strength, " )")
+            smoothing_value <- paste0("YES", "\n( ", smoothing_algorithm_input, ",\n" , smoothing_strength, " )")
         } else {
             smoothing_value <- "None"
         }
@@ -8256,7 +8269,7 @@ preprocessing_window_function <- function() {
     tof_mode_label <- tklabel(preproc_window, text="Select the TOF mode", font = label_font, bg = "white", width = 20)
     tof_mode_entry <- tkbutton(preproc_window, text="Choose the TOF mode", command = tof_mode_choice, font = button_font, bg = "white", width = 20)
     # Transform the data
-    transform_data_button <- tkbutton(preproc_window, text="Transform the data", command = transform_data_choice, font = button_font, bg = "white", width = 20)
+    transform_data_button <- tkbutton(preproc_window, text="Data transformation", command = transform_data_choice, font = button_font, bg = "white", width = 20)
     # Smoothing
     smoothing_button <- tkbutton(preproc_window, text="Smoothing", command = smoothing_choice, font = button_font, bg = "white", width = 20)
     # Baseline subtraction
@@ -8360,7 +8373,18 @@ set_file_name <- function() {
     filename_value <- filename
     #### Exit the function and put the variable into the R workspace
     .GlobalEnv$filename <- filename
+    .GlobalEnv$filename_value <- filename_value
     .GlobalEnv$filename_subfolder <- filename_subfolder
+}
+
+##### Dump parameters
+dump_parameters <- function() {
+    parameter_vector <- c(spectra_format_value, peak_picking_algorithm_value, SNR_value, peak_picking_mode_value, signals_to_take_value, peak_deisotoping_enveloping_value, low_intensity_peak_removal_threshold_percent_value, low_intensity_peak_removal_threshold_method, peak_filtering_threshold_percentage_value, peak_filtering_mode_value, average_replicates_value, mass_range_value, tof_mode_value, transform_data_value, smoothing_value, baseline_subtraction_value, normalization_value, spectral_alignment_value, filepath_import_value, output_folder_value, filename_value, file_type_export, signals_avg_and_sd_value)
+    names(parameter_vector) <- c("Spectra format", "Peak picking algorithm", "S/N", "Peak picking mode", "Most intense signals to take", "Peak deisotoping / enveloping", "Low-intensity peak removal threshold percentage", "Low-intensity peak removal method", "Peak filtering threshold percentage", "Peak filtering mode", "Average replicates", "Mass range", "TOF mode", "Data transformation", "Smoothing", "Baseline subtraction", "Normalization", "Spectral alignment", "Spectra folder", "Output folder", "File name", "File type", "Signal number statistics")
+    parameters_matrix <- cbind(parameter_vector)
+    rownames(parameters_matrix) <- names(parameter_vector)
+    colnames(parameters_matrix) <- "Parameter value"
+    .GlobalEnv$parameters_matrix <- parameters_matrix
 }
 
 ##### Samples
@@ -8400,6 +8424,7 @@ select_samples_function <- function() {
     filepath_import_value <- filepath_import
     # Exit the function and put the variable into the R workspace
     .GlobalEnv$filepath_import <- filepath_import
+    .GlobalEnv$filepath_import_value <- filepath_import_value
 }
 
 ##### Output
@@ -8739,7 +8764,11 @@ peak_picking_function <- function() {
         ## Signals to take in most intense peaks
         signals_to_take <- tclvalue(signals_to_take)
         signals_to_take <- as.integer(signals_to_take)
-        signals_to_take_value <- as.character(signals_to_take)
+        if (peak_picking_mode == "all") {
+            signals_to_take_value <- "all peaks"
+        } else if (peak_picking_mode == "most intense") {
+            signals_to_take_value <- as.character(signals_to_take)
+        }
         ## SNR
         SNR <- tclvalue(SNR)
         SNR <- as.numeric(SNR)
@@ -8751,9 +8780,9 @@ peak_picking_function <- function() {
             peaks <- peak_picking(spectra, peak_picking_algorithm = peak_picking_algorithm, SNR = SNR, tof_mode = tof_mode, allow_parallelization = allow_parallelization, deisotope_peaklist = peak_deisotoping, envelope_peaklist = peak_enveloping)
         }
         ## Peaks filtering threshold
-        peaks_filtering_threshold_percent <- tclvalue(peaks_filtering_threshold_percent)
-        peaks_filtering_threshold_percent <- as.numeric(peaks_filtering_threshold_percent)
-        peaks_filtering_threshold_percent_value <- as.character(peaks_filtering_threshold_percent)
+        peak_filtering_threshold_percentage <- tclvalue(peak_filtering_threshold_percentage)
+        peak_filtering_threshold_percentage <- as.numeric(peak_filtering_threshold_percentage)
+        peak_filtering_threshold_percentage_value <- as.character(peak_filtering_threshold_percentage)
         ## Low intensity threshold
         low_intensity_peak_removal_threshold_percent <- tclvalue(low_intensity_peak_removal_threshold_percent)
         low_intensity_peak_removal_threshold_percent <- as.numeric(low_intensity_peak_removal_threshold_percent)
@@ -8770,9 +8799,9 @@ peak_picking_function <- function() {
             } else if (isMassPeaks(peaks_class)) {
                 class_vector_for_peak_filtering <- peaks_class@metaData$file
             }
-            peaks <- align_and_filter_peaks(peaks, peak_picking_algorithm = peak_picking_algorithm, tof_mode = tof_mode, peak_filtering_frequency_threshold_percent = peaks_filtering_threshold_percent, class_vector_for_peak_filtering = class_vector_for_peak_filtering, low_intensity_peak_removal_threshold_percent = low_intensity_peak_removal_threshold_percent, low_intensity_peak_removal_threshold_method = low_intensity_peak_removal_threshold_method, reference_peaklist = NULL, spectra = spectra, alignment_iterations = 5, allow_parallelization = allow_parallelization)
+            peaks <- align_and_filter_peaks(peaks, peak_picking_algorithm = peak_picking_algorithm, tof_mode = tof_mode, peak_filtering_frequency_threshold_percent = peak_filtering_threshold_percentage, class_vector_for_peak_filtering = class_vector_for_peak_filtering, low_intensity_peak_removal_threshold_percent = low_intensity_peak_removal_threshold_percent, low_intensity_peak_removal_threshold_method = low_intensity_peak_removal_threshold_method, reference_peaklist = NULL, spectra = spectra, alignment_iterations = 5, allow_parallelization = allow_parallelization)
         } else if (peak_filtering_mode == "whole dataset") {
-            peaks <- align_and_filter_peaks(peaks, peak_picking_algorithm = peak_picking_algorithm, tof_mode = tof_mode, peak_filtering_frequency_threshold_percent = peaks_filtering_threshold_percent, class_vector_for_peak_filtering = NULL, low_intensity_peak_removal_threshold_percent = low_intensity_peak_removal_threshold_percent, low_intensity_peak_removal_threshold_method = low_intensity_peak_removal_threshold_method, reference_peaklist = NULL, spectra = spectra, alignment_iterations = 5, allow_parallelization = allow_parallelization)
+            peaks <- align_and_filter_peaks(peaks, peak_picking_algorithm = peak_picking_algorithm, tof_mode = tof_mode, peak_filtering_frequency_threshold_percent = peak_filtering_threshold_percentage, class_vector_for_peak_filtering = NULL, low_intensity_peak_removal_threshold_percent = low_intensity_peak_removal_threshold_percent, low_intensity_peak_removal_threshold_method = low_intensity_peak_removal_threshold_method, reference_peaklist = NULL, spectra = spectra, alignment_iterations = 5, allow_parallelization = allow_parallelization)
         }
         setTkProgressBar(peak_picking_progress_bar, value = 1, title = NULL, label = "100 %")
         close(peak_picking_progress_bar)
@@ -8780,6 +8809,8 @@ peak_picking_function <- function() {
         .GlobalEnv$peaks <- peaks
         .GlobalEnv$signals_to_take_value <- signals_to_take_value
         .GlobalEnv$SNR_value <- SNR_value
+        .GlobalEnv$peak_filtering_threshold_percentage_value <- peak_filtering_threshold_percentage_value
+        .GlobalEnv$low_intensity_peak_removal_threshold_percent_value <- low_intensity_peak_removal_threshold_percent_value
         ### Messagebox
         tkmessageBox(title = "Peak picking successful", message = "The peak picking process has been successfully performed", icon = "info")
     } else if (is.null(spectra)) {
@@ -8815,6 +8846,7 @@ signals_avg_and_sd_function <- function() {
             tkmessageBox(title = "Number of signals", message = message_avg_sd, icon = "info")
             signals_avg_and_sd_value <- paste0("Number of signals: ", number_of_signals)
         }
+        .GlobalEnv$signals_avg_and_sd_value <- signals_avg_and_sd_value
         # Generate a label to see the output
         signals_avg_and_sd_value_label <- tklabel(window, text = signals_avg_and_sd_value, font = label_font, bg = "white", width = 40, height = 5)
         tkgrid(signals_avg_and_sd_value_label, row = 10, column = 4, padx = c(10, 10), pady = c(10, 10),columnspan = 2)
@@ -8844,6 +8876,8 @@ run_peaklist_export_function <- function() {
             # Get the filename from the entry
             set_file_name()
             write.csv(peaklist, file = filename, row.names = FALSE)
+            dump_parameters()
+            write.csv(parameters_matrix, file = paste0(filename_subfolder, " - Parameters.", file_type_export), row.names = TRUE, col.names = TRUE)
         } else if (file_type_export == "xlsx" || file_type_export == "xls") {
         # Save the files (Excel)
             # Get the filename from the entry
@@ -8855,6 +8889,8 @@ run_peaklist_export_function <- function() {
             # Export
             writeWorksheetToFile(file = filename, data = peaklist, sheet = "Peaklist", clearSheets = TRUE, header = TRUE)
             #write.xlsx(x = peaklist, file = filename, sheetName="Peaklist", row.names = FALSE)
+            dump_parameters()
+            writeWorksheetToFile(file = paste0(filename_subfolder, " - Parameters.", file_type_export), data = parameters_matrix, sheet = "Parameters", clearSheets = TRUE, header = TRUE)
         }
         setTkProgressBar(program_progress_bar, value = 1, title = NULL, label = "100 %")
         close(program_progress_bar)
@@ -8998,7 +9034,7 @@ check_for_updates_function()
 
 ########## List of variables, whose values are taken from the entries in the GUI
 SNR <- tclVar("")
-peaks_filtering_threshold_percent <- tclVar("")
+peak_filtering_threshold_percentage <- tclVar("")
 low_intensity_peak_removal_threshold_percent <- tclVar("")
 signals_to_take <- tclVar("")
 file_name <- tclVar("")
@@ -9167,9 +9203,9 @@ SNR_label <- tklabel(window, text="Signal-to-noise\nratio", font = button_font, 
 SNR_entry <- tkentry(window, textvariable = SNR, font = entry_font, bg = "white", width = 5, justify = "center")
 tkinsert(SNR_entry, "end", "3")
 # Peaks filtering threshold
-peaks_filtering_threshold_percent_label <- tklabel(window, text="Peak filtering\nthreshold\nfrequency percentage", font = button_font, bg = "white", width = 20)
-peaks_filtering_threshold_percent_entry <- tkentry(window, textvariable = peaks_filtering_threshold_percent, font = entry_font, bg = "white", width = 5, justify = "center")
-tkinsert(peaks_filtering_threshold_percent_entry, "end", "5")
+peak_filtering_threshold_percentage_label <- tklabel(window, text="Peak filtering\nthreshold\nfrequency percentage", font = button_font, bg = "white", width = 20)
+peak_filtering_threshold_percentage_entry <- tkentry(window, textvariable = peak_filtering_threshold_percentage, font = entry_font, bg = "white", width = 5, justify = "center")
+tkinsert(peak_filtering_threshold_percentage_entry, "end", "5")
 # Peaks filtering mode
 peak_filtering_mode_entry <- tkbutton(window, text="PEAK FILTERING\nMODE", command = peak_filtering_mode_choice, font = button_font, bg = "white", width = 20)
 # Peaks deisotoping
@@ -9237,8 +9273,8 @@ tkgrid(signals_to_take_label, row = 3, column = 3, padx = c(10, 10), pady = c(10
 tkgrid(signals_to_take_entry, row = 3, column = 4, padx = c(10, 10), pady = c(10, 10))
 tkgrid(SNR_label, row = 2, column = 5, padx = c(10, 10), pady = c(10, 10))
 tkgrid(SNR_entry, row = 2, column = 6, padx = c(10, 10), pady = c(10, 10))
-tkgrid(peaks_filtering_threshold_percent_label, row = 5, column = 2, padx = c(10, 10), pady = c(10, 10))
-tkgrid(peaks_filtering_threshold_percent_entry, row = 5, column = 3, padx = c(10, 10), pady = c(10, 10))
+tkgrid(peak_filtering_threshold_percentage_label, row = 5, column = 2, padx = c(10, 10), pady = c(10, 10))
+tkgrid(peak_filtering_threshold_percentage_entry, row = 5, column = 3, padx = c(10, 10), pady = c(10, 10))
 tkgrid(peak_filtering_mode_entry, row = 5, column = 4, padx = c(10, 10), pady = c(10, 10))
 tkgrid(peak_filtering_mode_value_label, row = 5, column = 5, padx = c(10, 10), pady = c(10, 10))
 tkgrid(peak_deisotoping_entry, row = 3, column = 5, padx = c(10, 10), pady = c(10, 10))
@@ -9271,3 +9307,4 @@ tkgrid(check_for_updates_value_label, row = 1, column = 6, padx = c(10, 10), pad
 
 
 ################################################################################
+
