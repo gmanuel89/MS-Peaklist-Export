@@ -33,6 +33,8 @@ In this way, the software will read at first the folders in the provided sample 
 #### Output data
 The software generates a CSV file corresponding to the peaklist intensity matrix, in which each row is a spectrum (pixel or patient) and each column is a peak,with additional "Sample" and "Class" columns.
 
+Additionally, a file with the list of the parameters is generated and saved next to the peaklist file.
+
 The spectra files are placed in a folder with the same name as the peaklist file: if "MSD" is selected as the file format, one MSD file for each spectrum is generated, with the peaks embedded in the same file; if "TXT" is selected as the file format, two TXT files are generated, one forthe spectrum and one for the peaks.
 
 ***
@@ -66,7 +68,7 @@ The spectra files are placed in a folder with the same name as the peaklist file
 * **Spectra preprocessing parameters**: sets the parameters for spectral preprocessing.
     * **_Mass range_**: defines the mass range to which the imported spectra should be cut.
     * **_TOF mode_**: defines if the TOF has been used in the "Linear" or "Reflectron" mode (to adjust the parameters for spectral preprocessing and peak picking).
-    * **_Transform the data_**: selects if data transformation should be performed (applies a mathematical operation to all the intensities, such as square root or logarithm with base e, 2 and 10).
+    * **_Data transformation_**: selects if data transformation should be performed (applies a mathematical operation to all the intensities, such as square root or logarithm with base e, 2 and 10).
     * **_Smoothing_**: defines the algorithm for the smoothing ("Savitzky-Golay", "Moving Average", "None") and the strength of the smoothing ("medium", "strong", "stronger").
     * **_Baseline subtraction_**: defines the algorithm for baseline subtraction ("SNIP", "TopHat", "ConvexHull", "median"). Before selecting the baseline subtraction algorithm, a number defining the value of the specific parameter for the algorithm can be inserted, and the program will read it while setting the baseline subtraction algorithm.
     * **_Normalization_**: defines the algorithm for normalization ("TIC", "RMS", "PQN", "median", "None"). Before selecting the normalization algorithm, a number defining the normalization mass range can be inserted, and the program will read it while setting the normalization algorithm.
