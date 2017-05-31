@@ -3,7 +3,7 @@
 ***
 
 ## Program version
-In order for this WIKI to be applicable, the version of the program must be equal or higher than **2017.05.31.0**.
+In order for this WIKI to be applicable, the version of the program must be equal to or higher than **2017.05.31.0**.
 
 ***
 
