@@ -2,6 +2,11 @@
 
 ***
 
+## Program version
+In order for this WIKI to be applicable, the version of the program must be equal or higher than **2017.05.29.1**.
+
+***
+
 ## Programming language
 [R: The Comprehensive R Archive Network](https://www.r-project.org/)
 
