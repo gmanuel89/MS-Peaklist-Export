@@ -8167,7 +8167,7 @@ ms_peaklist_export <- function() {
             tkmessageBox(title = "Download folder", message = "Select where to save the updated script file", icon = "info")
             download_folder <- tclvalue(tkchooseDirectory())
             # Download the file only if a download folder is specified, otherwise don't
-            if (!nchar(download_folder)) {
+            if (download_folder != "") {
                 # Go to the working directory
                 setwd(download_folder)
                 tkmessageBox(message = paste("The updated script file will be downloaded in:\n\n", download_folder, sep = ""))
@@ -8182,10 +8182,6 @@ ms_peaklist_export <- function() {
                 } else {
                     tkmessageBox(title = "Connection problem", message = paste("The updated script file could not be downloaded due to internet connection problems!\n\nManually download the updated script file at:\n\n", github_R_url, sep = ""), icon = "warning")
                 }
-                
-                
-                
-                
             } else {
                 # No download folder specified!
                 tkmessageBox(message = "The updated script file will not be downloaded!")
