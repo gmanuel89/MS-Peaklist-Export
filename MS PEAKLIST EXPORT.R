@@ -7976,7 +7976,7 @@ ms_peaklist_export <- function() {
     
     
     ### Program version (Specified by the program writer!!!!)
-    R_script_version <- "2017.06.12.1"
+    R_script_version <- "2017.06.12.2"
     ### GitHub URL where the R file is
     github_R_url <- "https://raw.githubusercontent.com/gmanuel89/MS-Peaklist-Export/master/MS%20PEAKLIST%20EXPORT.R"
     ### GitHub URL of the program's WIKI
@@ -8166,23 +8166,29 @@ ms_peaklist_export <- function() {
             # Choose where to save the updated script
             tkmessageBox(title = "Download folder", message = "Select where to save the updated script file", icon = "info")
             download_folder <- tclvalue(tkchooseDirectory())
+            # Download the file only if a download folder is specified, otherwise don't
             if (!nchar(download_folder)) {
-                # Get the output folder from the default working directory
-                download_folder <- getwd()
-            }
-            # Go to the working directory
-            setwd(download_folder)
-            tkmessageBox(message = paste("The updated script file will be downloaded in:\n\n", download_folder, sep = ""))
-            # Download the file
-            try({
-                download.file(url = github_R_url, destfile = paste(script_file_name, " (", online_version_number, ").R", sep = ""), method = "auto")
-                file_downloaded <- TRUE
-            }, silent = TRUE)
-            if (file_downloaded == TRUE) {
-                tkmessageBox(title = "Updated file downloaded!", message = paste("The updated script, named:\n\n", paste(script_file_name, " (", online_version_number, ").R", sep = ""), "\n\nhas been downloaded to:\n\n", download_folder, "\n\nClose everything, delete this file and run the script from the new file!", sep = ""), icon = "info")
-                tkmessageBox(title = "Changelog", message = paste("The updated script contains the following changes:\n", online_change_log, sep = ""), icon = "info")
+                # Go to the working directory
+                setwd(download_folder)
+                tkmessageBox(message = paste("The updated script file will be downloaded in:\n\n", download_folder, sep = ""))
+                # Download the file
+                try({
+                    download.file(url = github_R_url, destfile = paste(script_file_name, " (", online_version_number, ").R", sep = ""), method = "auto")
+                    file_downloaded <- TRUE
+                }, silent = TRUE)
+                if (file_downloaded == TRUE) {
+                    tkmessageBox(title = "Updated file downloaded!", message = paste("The updated script, named:\n\n", paste(script_file_name, " (", online_version_number, ").R", sep = ""), "\n\nhas been downloaded to:\n\n", download_folder, "\n\nClose everything, delete this file and run the script from the new file!", sep = ""), icon = "info")
+                    tkmessageBox(title = "Changelog", message = paste("The updated script contains the following changes:\n", online_change_log, sep = ""), icon = "info")
+                } else {
+                    tkmessageBox(title = "Connection problem", message = paste("The updated script file could not be downloaded due to internet connection problems!\n\nManually download the updated script file at:\n\n", github_R_url, sep = ""), icon = "warning")
+                }
+                
+                
+                
+                
             } else {
-                tkmessageBox(title = "Connection problem", message = paste("The updated script file could not be downloaded due to internet connection problems!\n\nManually download the updated script file at:\n\n", github_R_url, sep = ""), icon = "warning")
+                # No download folder specified!
+                tkmessageBox(message = "The updated script file will not be downloaded!")
             }
         } else {
             tkmessageBox(title = "No update available", message = "NO UPDATES AVAILABLE!\n\nThe latest version is running!", icon = "info")
@@ -9520,4 +9526,3 @@ ms_peaklist_export <- function() {
 
 ### Run the function
 ms_peaklist_export()
-
