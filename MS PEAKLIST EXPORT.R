@@ -7925,6 +7925,7 @@ functions_mass_spectrometry <- function() {
 
 
 
+
 ####################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################
 
 
@@ -7976,7 +7977,7 @@ ms_peaklist_export <- function() {
     
     
     ### Program version (Specified by the program writer!!!!)
-    R_script_version <- "2017.06.12.2"
+    R_script_version <- "2017.06.12.4"
     ### GitHub URL where the R file is
     github_R_url <- "https://raw.githubusercontent.com/gmanuel89/MS-Peaklist-Export/master/MS%20PEAKLIST%20EXPORT.R"
     ### GitHub URL of the program's WIKI
@@ -8415,6 +8416,8 @@ ms_peaklist_export <- function() {
             preprocessing_parameters <<- list(mass_range = mass_range, transformation_algorithm = transform_data_algorithm, smoothing_algorithm = smoothing_algorithm, smoothing_strength = smoothing_strength, baseline_subtraction_algorithm = baseline_subtraction_algorithm, baseline_subtraction_algorithm_parameter = baseline_subtraction_algorithm_parameter, normalization_algorithm = normalization_algorithm, normalization_mass_range = normalization_mass_range, preprocess_spectra_in_packages_of = preprocess_spectra_in_packages_of, spectral_alignment_algorithm = spectral_alignment_algorithm, spectral_alignment_reference = spectral_alignment_reference)
             # Destroy the window upon committing
             tkdestroy(preproc_window)
+            # Raise the focus on the main window
+            tkraise(window)
         }
         ##### List of variables, whose values are taken from the entries in the GUI (create new variables for the sub window, that will replace the ones in the global environment, only if the default are changed)
         mass_range2 <- tclVar("")
@@ -8487,6 +8490,8 @@ ms_peaklist_export <- function() {
     file_type_export_choice <- function() {
         # Catch the value from the menu
         file_type_export <- select.list(c("csv","xlsx","xls"), title = "Choose", multiple = FALSE, preselect = "csv")
+        # Raise the focus on the main window
+        tkraise(window)
         # Default
         if (file_type_export == "") {
             file_type_export <- "csv"
