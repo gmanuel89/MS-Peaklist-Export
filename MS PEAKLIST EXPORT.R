@@ -7976,7 +7976,7 @@ ms_peaklist_export <- function() {
     
     
     ### Program version (Specified by the program writer!!!!)
-    R_script_version <- "2017.06.12.0"
+    R_script_version <- "2017.06.12.1"
     ### GitHub URL where the R file is
     github_R_url <- "https://raw.githubusercontent.com/gmanuel89/MS-Peaklist-Export/master/MS%20PEAKLIST%20EXPORT.R"
     ### GitHub URL of the program's WIKI
@@ -7984,7 +7984,7 @@ ms_peaklist_export <- function() {
     ### Name of the file when downloaded
     script_file_name <- "MS PEAKLIST EXPORT"
     # Change log
-    change_log <- "1. Fixed GUI\n2. Import TXT spectra allowed\n3. Peak enveloping\n4. Classwise peak filtering\n4. Added the RMS normalization\n5. Dump parameters\n6. More accurate peak enveloping"
+    change_log <- "1. Fixed GUI\n2. Import TXT spectra allowed\n3. Peak enveloping\n4. Classwise peak filtering\n4. Added the RMS normalization\n5. Dump parameters\n6. More accurate peak enveloping\n7. Fixed focusing on Windows"
     
     
     
@@ -8187,6 +8187,8 @@ ms_peaklist_export <- function() {
         } else {
             tkmessageBox(title = "No update available", message = "NO UPDATES AVAILABLE!\n\nThe latest version is running!", icon = "info")
         }
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Preprocessing window
@@ -8495,6 +8497,8 @@ ms_peaklist_export <- function() {
         # Set the value of the displaying label
         file_type_export_value_label <- tklabel(window, text = file_type_export, font = label_font, bg = "white", width = 20)
         tkgrid(file_type_export_value_label, row = 8, column = 6, padx = c(10, 10), pady = c(10, 10))
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### File name (export)
@@ -8540,6 +8544,8 @@ ms_peaklist_export <- function() {
         filename <<- filename
         filename_value <<- filename_value
         filename_subfolder <<- filename_subfolder
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Dump parameters
@@ -8550,6 +8556,8 @@ ms_peaklist_export <- function() {
         rownames(parameters_matrix) <- names(parameter_vector)
         colnames(parameters_matrix) <- "Parameter value"
         parameters_matrix <<- parameters_matrix
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Samples
@@ -8590,6 +8598,8 @@ ms_peaklist_export <- function() {
         # Exit the function and put the variable into the R workspace
         filepath_import <<- filepath_import
         filepath_import_value <<- filepath_import_value
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Output
@@ -8603,6 +8613,8 @@ ms_peaklist_export <- function() {
         setwd(output_folder)
         # Exit the function and put the variable into the R workspace
         output_folder <<- output_folder
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Exit
@@ -8628,6 +8640,8 @@ ms_peaklist_export <- function() {
         # Escape the function
         peak_picking_mode <<- peak_picking_mode
         peak_picking_mode_value <<- peak_picking_mode_value
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Peak picking algorithm
@@ -8650,6 +8664,8 @@ ms_peaklist_export <- function() {
         # Escape the function
         peak_picking_algorithm <<- peak_picking_algorithm
         peak_picking_algorithm_value <<- peak_picking_algorithm_value
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Peaks deisotoping or enveloping
@@ -8678,6 +8694,8 @@ ms_peaklist_export <- function() {
         peak_deisotoping <<- peak_deisotoping
         peak_enveloping <<- peak_enveloping
         peak_deisotoping_enveloping_value <<- peak_deisotoping_enveloping_value
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Multicore processing
@@ -8704,6 +8722,8 @@ ms_peaklist_export <- function() {
         # Escape the function
         allow_parallelization <<- allow_parallelization
         allow_parallelization_value <<- allow_parallelization_value
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Average the replicates
@@ -8728,6 +8748,8 @@ ms_peaklist_export <- function() {
         # Escape the function
         average_replicates <<- average_replicates
         average_replicates_value <<- average_replicates_value
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Peak filtering mode
@@ -8745,6 +8767,8 @@ ms_peaklist_export <- function() {
         # Escape the function
         peak_filtering_mode <<- peak_filtering_mode
         peak_filtering_mode_value <<- peak_filtering_mode_value
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Low intensity peaks removal Method
@@ -8765,6 +8789,8 @@ ms_peaklist_export <- function() {
         # Escape the function
         low_intensity_peak_removal_threshold_method <<- low_intensity_peak_removal_threshold_method
         low_intensity_peak_removal_threshold_method_value <<- low_intensity_peak_removal_threshold_method_value
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### File format
@@ -8800,6 +8826,8 @@ ms_peaklist_export <- function() {
         # Set the value of the displaying label
         spectra_format_value_label <- tklabel(window, text = spectra_format_value, font = label_font, bg = "white", width = 20)
         tkgrid(spectra_format_value_label, row = 2, column = 2, padx = c(10, 10), pady = c(10, 10))
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Import the spectra
@@ -8916,6 +8944,8 @@ ms_peaklist_export <- function() {
             ### Messagebox
             tkmessageBox(title = "Import not possible", message = "No spectra files or folder have been selected!", icon = "warning")
         }
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Peak picking function
@@ -8982,6 +9012,8 @@ ms_peaklist_export <- function() {
             ### Messagebox
             tkmessageBox(title = "Spectra not imported", message = "The spectra have not been imported yet.\nImport them before performing the peak picking", icon = "warning")
         }
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Output the average number of signals with the SD
@@ -9019,6 +9051,8 @@ ms_peaklist_export <- function() {
             ### Messagebox
             tkmessageBox(title = "Something is wrong", message = "Some elements are needed to perform this operation: make sure that the peak picking process has been performed", icon = "warning")
         }
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Run the Peaklist Export function
@@ -9065,6 +9099,8 @@ ms_peaklist_export <- function() {
             ### Messagebox
             tkmessageBox(title = "Something is wrong", message = "Some elements are needed to perform this operation: make sure that the spectra have been imported and the peak picking process has been performed", icon = "warning")
         }
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Dump the spectral files
@@ -9169,6 +9205,8 @@ ms_peaklist_export <- function() {
             ### Messagebox
             tkmessageBox(title = "Spectra not loaded or Peaks not picked!", message = "No spectra have been imported yet or no peak picking has been performed!", icon = "warning")
         }
+        # Raise the focus on the main window
+        tkraise(window)
     }
     
     ##### Show info function
@@ -9346,6 +9384,8 @@ ms_peaklist_export <- function() {
     window <- tktoplevel(bg = "white")
     #tkpack.propagate(window, FALSE)
     tkwm.resizable(window, FALSE, FALSE)
+    # Raise the focus on the main window
+    tkraise(window)
     tktitle(window) <- "MS PEAKLIST EXPORT"
     #### Browse
     # Title label
