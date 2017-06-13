@@ -8330,6 +8330,7 @@ functions_mass_spectrometry <- function() {
 
 
 
+
 ####################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################
 
 
@@ -8381,7 +8382,7 @@ ms_peaklist_export <- function() {
     
     
     ### Program version (Specified by the program writer!!!!)
-    R_script_version <- "2017.06.13.1"
+    R_script_version <- "2017.06.13.2"
     ### Force update (in case something goes wrong after an update, when checking for updates and reading the variable force_update, the script can automatically download the latest working version, even if the rest of the script is corrupted, because it is the first thing that reads)
     force_update <- FALSE
     ### GitHub URL where the R file is
@@ -9713,8 +9714,10 @@ ms_peaklist_export <- function() {
     
     ### FONTS
     # Default sizes (determined on a 1680x1050 screen) (in order to make them adjust to the size screen, the screen resolution should be retrieved)
-    title_font_size <- 24
-    other_font_size <- 11
+    title_font_size_default <- 18
+    other_font_size_default <- 9
+    title_font_size <- title_font_size_default
+    other_font_size <- other_font_size_default
     
     # Adjust fonts size according to the pixel number
     try({
@@ -9739,6 +9742,13 @@ ms_peaklist_export <- function() {
         } else if (system_os == "Darwin") {
             # macOS
             print("Using default font sizes...")
+        }
+        # Go back to defaults if there are NAs
+        if (is.na(title_font_size)) {
+            title_font_size <- title_font_size_default
+        }
+        if (is.na(other_font_size)) {
+            other_font_size <- other_font_size_default
         }
     }, silent = TRUE)
     
