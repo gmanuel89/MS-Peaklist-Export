@@ -5,7 +5,7 @@ rm(list = ls())
 
 functions_mass_spectrometry <- function() {
     
-    ################## FUNCTIONS - MASS SPECTROMETRY 2017.06.12 ################
+    ################## FUNCTIONS - MASS SPECTROMETRY 2017.06.13 ################
     # Each function is assigned with <<- instead of <-, so when called by the huge functions_mass_spectrometry() function they go in the global environment, like as if the script was directly sourced from the file.
     
     
@@ -694,7 +694,7 @@ functions_mass_spectrometry <- function() {
     ##################################################### REMOVE LOW INTENSITY PEAKS
     # This function removes low-intensity peaks (in terms of level of intensity compared with the most intense peak in the peaklist) from the list of provided peaks (MALDIquant).
     # If the method is selected to be "element-wise", each element of the peaklist is evaluated, and the intensity threshold is calculated over the peaks of only that element. Otherwise, if "whole" is selected, the threshold is calculated on all the peaks in the dataset.
-    remove_low_intensity_peaks <<- function(peaks, low_intensity_peak_removal_threshold_percent = 0.1, low_intensity_peak_removal_threshold_method = "element-wise", allow_parallelization = FALSE) {
+    remove_low_intensity_peaks <<- function(peaks, low_intensity_peak_removal_threshold_percent = 1, low_intensity_peak_removal_threshold_method = "element-wise", allow_parallelization = FALSE) {
         ### Load the required libraries
         install_and_load_required_packages(c("parallel", "MALDIquant", "XML"))
         ### Fix the percentage value
@@ -747,7 +747,7 @@ functions_mass_spectrometry <- function() {
                 ##### Multiple peaks elements
                 if (isMassPeaksList(peaks)) {
                     ### MULTICORE
-                    if (allow_parallelization == TRUE) {
+                    if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
                         # Detect the number of cores
                         cpu_thread_number <- detectCores(logical = TRUE)
                         if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
@@ -765,11 +765,41 @@ functions_mass_spectrometry <- function() {
                             peaks_filtered <- parLapply(cl, peaks, fun = function (peaks) intensity_filtering_subfunction_element(peaks, low_intensity_peak_removal_threshold_percent))
                             stopCluster(cl)
                         } else {
-                            peaks_filtered <- lapply(peaks, FUN = function (peaks) intensity_filtering_subfunction_element(peaks, low_intensity_peak_removal_threshold_percent))
+                            peaks_filtered <- lapply(peaks, FUN = function(peaks) intensity_filtering_subfunction_element(peaks, low_intensity_peak_removal_threshold_percent))
                         }
+                    } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
+                        # Load the packages
+                        install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
+                        ### PARALLEL BACKEND
+                        # Detect the number of cores
+                        cpu_thread_number <- detectCores(logical = TRUE)
+                        if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
+                            cpu_thread_number <- cpu_thread_number / 2
+                            install_and_load_required_packages("doMC")
+                            # Register the foreach backend
+                            registerDoMC(cores = cpu_thread_number)
+                        } else if (Sys.info()[1] == "Windows") {
+                            cpu_thread_number <- cpu_thread_number - 1
+                            install_and_load_required_packages("doParallel")
+                            # Register the foreach backend
+                            cl <- makeCluster(cpu_thread_number, type='PSOCK')
+                            registerDoParallel(cl)
+                        }
+                        # Preserve the list names
+                        if (!is.null(names(peaks))) {
+                            list_names <- names(peaks)
+                        } else {
+                            list_names <- NULL
+                        }
+                        # Run the function
+                        peaks_filtered <- list()
+                        peaks_filtered <- foreach(i = 1:length(peaks), .packages = "MALDIquant") %dopar% {
+                            peaks_filtered[[i]] <- intensity_filtering_subfunction_element(peaks[[i]], low_intensity_peak_removal_threshold_percent = low_intensity_peak_removal_threshold_percent)
+                        }
+                        names(peaks_filtered) <- list_names
                     } else {
                         ### SINGLE CORE
-                        peaks_filtered <- lapply(peaks, FUN = function (peaks) intensity_filtering_subfunction_element(peaks, low_intensity_peak_removal_threshold_percent))
+                        peaks_filtered <- lapply(peaks, FUN = function(peaks) intensity_filtering_subfunction_element(peaks, low_intensity_peak_removal_threshold_percent))
                     }
                 } else {
                     ##### Single peaks element
@@ -828,7 +858,7 @@ functions_mass_spectrometry <- function() {
                 ##### Multiple peaks elements
                 if (isMassPeaksList(peaks)) {
                     ### MULTICORE
-                    if (allow_parallelization == TRUE) {
+                    if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
                         # Detect the number of cores
                         cpu_thread_number <- detectCores(logical = TRUE)
                         if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
@@ -848,6 +878,36 @@ functions_mass_spectrometry <- function() {
                         } else {
                             peaks_filtered <- lapply(peaks, FUN = function(peaks) intensity_filtering_subfunction_whole(peaks, low_intensity_peak_removal_threshold_percent, highest_intensity))
                         }
+                    } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
+                        # Load the packages
+                        install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
+                        ### PARALLEL BACKEND
+                        # Detect the number of cores
+                        cpu_thread_number <- detectCores(logical = TRUE)
+                        if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
+                            cpu_thread_number <- cpu_thread_number / 2
+                            install_and_load_required_packages("doMC")
+                            # Register the foreach backend
+                            registerDoMC(cores = cpu_thread_number)
+                        } else if (Sys.info()[1] == "Windows") {
+                            cpu_thread_number <- cpu_thread_number - 1
+                            install_and_load_required_packages("doParallel")
+                            # Register the foreach backend
+                            cl <- makeCluster(cpu_thread_number, type='PSOCK')
+                            registerDoParallel(cl)
+                        }
+                        # Preserve the list names
+                        if (!is.null(names(peaks))) {
+                            list_names <- names(peaks)
+                        } else {
+                            list_names <- NULL
+                        }
+                        # Run the function
+                        peaks_filtered <- list()
+                        peaks_filtered <- foreach(i = 1:length(peaks), .packages = "MALDIquant") %dopar% {
+                            peaks_filtered[[i]] <- intensity_filtering_subfunction_whole(peaks[[i]], low_intensity_peak_removal_threshold_percent = low_intensity_peak_removal_threshold_percent, highest_intensity = highest_intensity)
+                        }
+                        names(peaks_filtered) <- list_names
                     } else {
                         ### SINGLE CORE
                         peaks_filtered <- lapply(peaks, FUN = function(peaks) intensity_filtering_subfunction_whole(peaks, low_intensity_peak_removal_threshold_percent, highest_intensity))
@@ -1467,51 +1527,59 @@ functions_mass_spectrometry <- function() {
                 # lowest number of original data points
                 if (final_data_points > lowest_data_points) {
                     final_data_points <- lowest_data_points
-                    cat("\nBinning at this sample rate is not possible, the highest number of data points possible will be used\n")
-                    if (allow_parallelization == TRUE) {
-                        # Load the required libraries
-                        install_and_load_required_packages("parallel")
-                        # Detect the number of cores
-                        cpu_thread_number <- detectCores(logical = TRUE)
-                        if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-                            cpu_thread_number <- cpu_thread_number / 2
-                            spectra_binned <- mclapply(spectra, FUN = function (spectra) binning_subfunction(spectra, final_data_points, binning_method), mc.cores = cpu_thread_number)
-                        } else if (Sys.info()[1] == "Windows") {
-                            cpu_thread_number <- cpu_thread_number - 1
-                            cl <- makeCluster(cpu_thread_number)
-                            # Pass the variables to the cluster for running the function
-                            clusterExport(cl = cl, varlist = c("final_data_points", "binning_method"), envir = environment())
-                            spectra_binned <- parLapply(cl, spectra, fun = function (spectra) binning_subfunction(spectra, final_data_points, binning_method))
-                            stopCluster(cl)
-                        } else {
-                            spectra_binned <- lapply(spectra, FUN = function (spectra) binning_subfunction(spectra, final_data_points, binning_method))
-                        }
+                } else {
+                    final_data_points <- final_data_points
+                }
+                cat("\nBinning at this sample rate is not possible, the highest number of data points possible will be used\n")
+                if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
+                    # Load the required libraries
+                    install_and_load_required_packages("parallel")
+                    # Detect the number of cores
+                    cpu_thread_number <- detectCores(logical = TRUE)
+                    if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
+                        cpu_thread_number <- cpu_thread_number / 2
+                        spectra_binned <- mclapply(spectra, FUN = function (spectra) binning_subfunction(spectra, final_data_points, binning_method), mc.cores = cpu_thread_number)
+                    } else if (Sys.info()[1] == "Windows") {
+                        cpu_thread_number <- cpu_thread_number - 1
+                        cl <- makeCluster(cpu_thread_number)
+                        # Pass the variables to the cluster for running the function
+                        clusterExport(cl = cl, varlist = c("final_data_points", "binning_method"), envir = environment())
+                        spectra_binned <- parLapply(cl, spectra, fun = function (spectra) binning_subfunction(spectra, final_data_points, binning_method))
+                        stopCluster(cl)
                     } else {
                         spectra_binned <- lapply(spectra, FUN = function (spectra) binning_subfunction(spectra, final_data_points, binning_method))
                     }
-                }
-                if (final_data_points <= lowest_data_points) {
-                    if (allow_parallelization == TRUE) {
-                        # Load the required libraries
-                        install_and_load_required_packages("parallel")
-                        # Detect the number of cores
-                        cpu_thread_number <- detectCores(logical = TRUE)
-                        if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
-                            cpu_thread_number <- cpu_thread_number / 2
-                            spectra_binned <- mclapply(spectra, FUN = function(spectra) binning_subfunction(spectra, final_data_points, binning_method), mc.cores = cpu_thread_number)
-                        } else if (Sys.info()[1] == "Windows") {
-                            cpu_thread_number <- cpu_thread_number - 1
-                            cl <- makeCluster(cpu_thread_number)
-                            # Pass the variables to the cluster for running the function
-                            clusterExport(cl = cl, varlist = c("final_data_points", "binning_method"), envir = environment())
-                            spectra_binned <- parLapply(cl, spectra, fun = function (spectra) binning_subfunction(spectra, final_data_points, binning_method))
-                            stopCluster(cl)
-                        } else {
-                            spectra_binned <- lapply(spectra, fun = function (spectra) binning_subfunction(spectra, final_data_points, binning_method))
-                        }
-                    } else {
-                        spectra_binned <- lapply(spectra, fun = function (spectra) binning_subfunction(spectra, final_data_points, binning_method))
+                } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
+                    # Load the packages
+                    install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
+                    ### PARALLEL BACKEND
+                    # Detect the number of cores
+                    cpu_thread_number <- detectCores(logical = TRUE)
+                    if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
+                        cpu_thread_number <- cpu_thread_number / 2
+                        install_and_load_required_packages("doMC")
+                        # Register the foreach backend
+                        registerDoMC(cores = cpu_thread_number)
+                    } else if (Sys.info()[1] == "Windows") {
+                        cpu_thread_number <- cpu_thread_number - 1
+                        install_and_load_required_packages("doParallel")
+                        # Register the foreach backend
+                        cl <- makeCluster(cpu_thread_number, type='PSOCK')
+                        registerDoParallel(cl)
                     }
+                    # Preserve the list names
+                    if (!is.null(names(spectra))) {
+                        list_names <- names(spectra)
+                    } else {
+                        list_names <- NULL
+                    }
+                    spectra_binned <- list()
+                    spectra_binned <- foreach(i = 1:length(spectra), .packages = "MALDIquant") %dopar% {
+                        spectra_binned[[i]] <- binning_subfunction(spectra[[i]], final_data_points = final_data_points, binning_method = binning_method)
+                    }
+                    names(spectra_binned) <- list_names
+                } else {
+                    spectra_binned <- lapply(spectra, FUN = function(spectra) binning_subfunction(spectra, final_data_points, binning_method))
                 }
             }
             cat(table(sapply(spectra_binned, length)))
@@ -1555,7 +1623,7 @@ functions_mass_spectrometry <- function() {
         ##### More elements
         if (isMassSpectrumList(spectra) || isMassPeaksList(spectra)) {
             ##### Apply the function
-            if (allow_parallelization == TRUE) {
+            if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
                 # Detect the number of cores
                 cpu_thread_number <- detectCores(logical = TRUE)
                 if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
@@ -1575,6 +1643,34 @@ functions_mass_spectrometry <- function() {
                 } else {
                     spectra <- lapply(spectra, FUN = function(spectra) backslash_replacing_subfunction(spectra))
                 }
+            } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
+                # Load the packages
+                install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
+                ### PARALLEL BACKEND
+                # Detect the number of cores
+                cpu_thread_number <- detectCores(logical = TRUE)
+                if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
+                    cpu_thread_number <- cpu_thread_number / 2
+                    install_and_load_required_packages("doMC")
+                    # Register the foreach backend
+                    registerDoMC(cores = cpu_thread_number)
+                } else if (Sys.info()[1] == "Windows") {
+                    cpu_thread_number <- cpu_thread_number - 1
+                    install_and_load_required_packages("doParallel")
+                    # Register the foreach backend
+                    cl <- makeCluster(cpu_thread_number, type='PSOCK')
+                    registerDoParallel(cl)
+                }
+                # Preserve the list names
+                if (!is.null(names(spectra))) {
+                    list_names <- names(spectra)
+                } else {
+                    list_names <- NULL
+                }
+                spectra <- foreach(i = 1:length(spectra), .packages = "MALDIquant") %dopar% {
+                    spectra[[i]] <- backslash_replacing_subfunction(spectra[[i]])
+                }
+                names(spectra) <- list_names
             } else {
                 spectra <- lapply(spectra, FUN = function(spectra) backslash_replacing_subfunction(spectra))
             }
@@ -1736,7 +1832,7 @@ functions_mass_spectrometry <- function() {
         ##### More elements
         if (isMassSpectrumList(spectra) || isMassPeaksList(spectra)) {
             ##### Apply the function
-            if (allow_parallelization == TRUE) {
+            if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
                 # Detect the number of cores
                 cpu_thread_number <- detectCores(logical = TRUE)
                 if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
@@ -1756,6 +1852,34 @@ functions_mass_spectrometry <- function() {
                 } else {
                     spectra <- lapply(spectra, FUN = function(spectra) name_replacing_subfunction(spectra, spectra_format = spectra_format))
                 }
+            } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
+                # Load the packages
+                install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
+                ### PARALLEL BACKEND
+                # Detect the number of cores
+                cpu_thread_number <- detectCores(logical = TRUE)
+                if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
+                    cpu_thread_number <- cpu_thread_number / 2
+                    install_and_load_required_packages("doMC")
+                    # Register the foreach backend
+                    registerDoMC(cores = cpu_thread_number)
+                } else if (Sys.info()[1] == "Windows") {
+                    cpu_thread_number <- cpu_thread_number - 1
+                    install_and_load_required_packages("doParallel")
+                    # Register the foreach backend
+                    cl <- makeCluster(cpu_thread_number, type='PSOCK')
+                    registerDoParallel(cl)
+                }
+                # Preserve the list names
+                if (!is.null(names(spectra))) {
+                    list_names <- names(spectra)
+                } else {
+                    list_names <- NULL
+                }
+                spectra <- foreach(i = 1:length(spectra), .packages = "MALDIquant") %dopar% {
+                    spectra[[i]] <- name_replacing_subfunction(spectra[[i]], spectra_format = spectra_format)
+                }
+                names(spectra) <- list_names
             } else {
                 spectra <- lapply(spectra, FUN = function(spectra) name_replacing_subfunction(spectra, spectra_format = spectra_format))
             }
@@ -1818,16 +1942,16 @@ functions_mass_spectrometry <- function() {
     ################################################# SAMPLE NAME REPLACING
     # This function puts the sample name or a unique ID number (corresponding to the list entry number) as the name of the list element, so that names(spectra) is not NULL and a better identification of the spectra is obtained (through a unique name). Moreover, the function can replace the sample name field in the spectrum with the actual sample name (keeping only the last part of the file path and discarding the folder tree) (with the replace_sample_name function).
     # The input can be both spectra or peaks (MALDIquant)
-    replace_sample_name_list <<- function(spectra, spectra_format = "imzml", type = "number", replace_sample_name_field = TRUE) {
+    replace_sample_name_list <<- function(spectra, spectra_format = "imzml", type = "number", replace_sample_name_field = TRUE, allow_parallelization = FALSE) {
         ## Replace backslash first
-        spectra <- replace_backslash(spectra, allow_parallelization = FALSE)
+        spectra <- replace_backslash(spectra, allow_parallelization = allow_parallelization)
         ##### Replace the list names only if NULL
         if (is.null(names(spectra))) {
             ########## SAMPLE NAME
             if (type == "name") {
                 ##### Replace also the metaData$file with the sample name
                 if (replace_sample_name_field == TRUE) {
-                    spectra <- replace_sample_name(spectra, spectra_format = spectra_format, allow_parallelization = FALSE)
+                    spectra <- replace_sample_name(spectra, spectra_format = spectra_format, allow_parallelization = allow_parallelization)
                     ##### More spectra
                     if (isMassSpectrumList(spectra) || isMassPeaksList(spectra)) {
                         # Generate a vector with all the spectra names
@@ -1847,7 +1971,7 @@ functions_mass_spectrometry <- function() {
                     }
                 } else {
                     # Create a temporary spectral list for name replacing
-                    spectra_temp <- replace_sample_name(spectra, spectra_format = spectra_format, allow_parallelization = FALSE)
+                    spectra_temp <- replace_sample_name(spectra, spectra_format = spectra_format, allow_parallelization = allow_parallelization)
                     ##### More spectra
                     if (isMassSpectrumList(spectra) || isMassPeaksList(spectra)) {
                         # Generate a vector with all the spectra names
@@ -1869,7 +1993,7 @@ functions_mass_spectrometry <- function() {
             } else if (type == "number") {
                 ########## NUMBER
                 if (replace_sample_name_field == TRUE) {
-                    spectra <- replace_sample_name(spectra, spectra_format = spectra_format, allow_parallelization = FALSE)
+                    spectra <- replace_sample_name(spectra, spectra_format = spectra_format, allow_parallelization = allow_parallelization)
                 }
                 ##### More spectra
                 if (isMassSpectrumList(spectra) || isMassPeaksList(spectra)) {
@@ -2191,7 +2315,7 @@ functions_mass_spectrometry <- function() {
             for (f in 1:number_of_folds) {
                 spectra_temp <- spectra[which(spectra_id_folds == f)]
                 # Apply the function to the list of spectra_temp
-                if (allow_parallelization == TRUE) {
+                if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
                     # Detect the number of cores
                     cpu_thread_number <- detectCores(logical = TRUE)
                     if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
@@ -2206,6 +2330,37 @@ functions_mass_spectrometry <- function() {
                         stopCluster(cl)
                     } else {
                         spectra_temp <- lapply(spectra_temp, FUN = function(spectra_temp) preprocessing_subfunction(spectra_temp, mass_range = mass_range, transformation_algorithm = transformation_algorithm, smoothing_algorithm = smoothing_algorithm, smoothing_half_window_size = smoothing_half_window_size, baseline_subtraction_algorithm = baseline_subtraction_algorithm, baseline_subtraction_algorithm_parameter = baseline_subtraction_algorithm_parameter, normalization_algorithm = normalization_algorithm, normalization_mass_range = normalization_mass_range))
+                    }
+                } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
+                    # Load the packages
+                    install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
+                    ### PARALLEL BACKEND
+                    # Detect the number of cores
+                    cpu_thread_number <- detectCores(logical = TRUE)
+                    if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
+                        cpu_thread_number <- cpu_thread_number / 2
+                        install_and_load_required_packages("doMC")
+                        # Register the foreach backend
+                        registerDoMC(cores = cpu_thread_number)
+                    } else if (Sys.info()[1] == "Windows") {
+                        cpu_thread_number <- cpu_thread_number - 1
+                        install_and_load_required_packages("doParallel")
+                        # Register the foreach backend
+                        cl <- makeCluster(cpu_thread_number, type='PSOCK')
+                        registerDoParallel(cl)
+                    }
+                    # Preserve the list names
+                    if (!is.null(names(spectra_temp))) {
+                        list_names <- names(spectra_temp)
+                    } else {
+                        list_names <- NULL
+                    }
+                    spectra_temp <- foreach(i = 1:length(spectra_temp), .packages = "MALDIquant") %dopar% {
+                        spectra_temp[[i]] <- preprocessing_subfunction(spectra_temp[[i]], mass_range = mass_range, transformation_algorithm = transformation_algorithm, smoothing_algorithm = smoothing_algorithm, smoothing_half_window_size = smoothing_half_window_size, baseline_subtraction_algorithm = baseline_subtraction_algorithm, baseline_subtraction_algorithm_parameter = baseline_subtraction_algorithm_parameter, normalization_algorithm = normalization_algorithm, normalization_mass_range = normalization_mass_range)
+                    }
+                    names(spectra_temp) <- list_names
+                    if (Sys.info()[1] == "Windows") {
+                        stopCluster(cl)
                     }
                 } else {
                     spectra_temp <- lapply(spectra_temp, FUN = function(spectra_temp) preprocessing_subfunction(spectra_temp, mass_range = mass_range, transformation_algorithm = transformation_algorithm, smoothing_algorithm = smoothing_algorithm, smoothing_half_window_size = smoothing_half_window_size, baseline_subtraction_algorithm = baseline_subtraction_algorithm, baseline_subtraction_algorithm_parameter = baseline_subtraction_algorithm_parameter, normalization_algorithm = normalization_algorithm, normalization_mass_range = normalization_mass_range))
@@ -2413,24 +2568,24 @@ functions_mass_spectrometry <- function() {
         # Rename the trim function
         trim_spectra <- get(x = "trim", pos = "package:MALDIquant")
         ####################################################### PICKING FUNCTION
-        picking_subfunction <<- function (peaks, signals_to_take) {
+        picking_subfunction <<- function(peaks, signals_to_take) {
             # Create a dataframe with mass and intensity
-            peaks_data_frame <- data.frame (mass = peaks@mass, intensity = peaks@intensity, SNR = peaks@snr)
+            peaks_data_frame <- data.frame(mass = peaks@mass, intensity = peaks@intensity, SNR = peaks@snr)
             # Check if the provided number does not exceed the number of available signals
             if (signals_to_take > nrow(peaks_data_frame) || signals_to_take <= 0) {
                 signals_to_take <- nrow(peaks_data_frame)
             }
             # Sort the dataframe according to the SNR
-            peaks_data_frame <- peaks_data_frame [order(-peaks_data_frame$SNR),]
+            peaks_data_frame <- peaks_data_frame[order(-peaks_data_frame$SNR),]
             # Select only the first most intense signals
-            selected_signals <- peaks_data_frame [1:signals_to_take,]
+            selected_signals <- peaks_data_frame[1:signals_to_take,]
             # Sort the dataframe back according to mass
-            selected_signals <- selected_signals [order(selected_signals$mass),]
+            selected_signals <- selected_signals[order(selected_signals$mass),]
             # Put these signals back into the peaklist
             peaks@mass <- selected_signals$mass
             peaks@intensity <- selected_signals$intensity
             peaks@snr <- selected_signals$SNR
-            return (peaks)
+            return(peaks)
         }
         ########################################################################
         # Peak picking
@@ -2441,7 +2596,7 @@ functions_mass_spectrometry <- function() {
         }
         # Most intense signals
         if (isMassPeaksList(peaks)) {
-            if (allow_parallelization == TRUE) {
+            if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
                 # Detect the number of cores
                 cpu_thread_number <- detectCores(logical = TRUE)
                 if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
@@ -2458,6 +2613,36 @@ functions_mass_spectrometry <- function() {
                 } else {
                     most_intense_peaks <- lapply(peaks, FUN = function(peaks) picking_subfunction(peaks, signals_to_take = signals_to_take))
                 }
+            } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
+                # Load the packages
+                install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
+                ### PARALLEL BACKEND
+                # Detect the number of cores
+                cpu_thread_number <- detectCores(logical = TRUE)
+                if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
+                    cpu_thread_number <- cpu_thread_number / 2
+                    install_and_load_required_packages("doMC")
+                    # Register the foreach backend
+                    registerDoMC(cores = cpu_thread_number)
+                } else if (Sys.info()[1] == "Windows") {
+                    cpu_thread_number <- cpu_thread_number - 1
+                    install_and_load_required_packages("doParallel")
+                    # Register the foreach backend
+                    cl <- makeCluster(cpu_thread_number, type='PSOCK')
+                    registerDoParallel(cl)
+                }
+                # Preserve the list names
+                if (!is.null(names(peaks))) {
+                    list_names <- names(peaks)
+                } else {
+                    list_names <- NULL
+                }
+                # Run the function
+                most_intense_peaks <- list()
+                most_intense_peaks <- foreach(i = 1:length(peaks), .packages = "MALDIquant") %dopar% {
+                    most_intense_peaks[[i]] <- picking_subfunction(peaks[[i]], signals_to_take = signals_to_take)
+                }
+                names(most_intense_peaks) <- list_names
             } else {
                 most_intense_peaks <- lapply(peaks, FUN = function(peaks) picking_subfunction(peaks, signals_to_take = signals_to_take))
             }
@@ -2575,16 +2760,16 @@ functions_mass_spectrometry <- function() {
         ########## SINGLE SPECTRUM
         if (isMassSpectrum(spectra)) {
             peaks <- detectPeaks(spectra, method = peak_picking_algorithm, halfWindowSize = half_window_size, SNR = SNR)
-        }
-        ########## MULTIPLE SPECTRA
-        if (isMassSpectrumList(spectra)) {
+        } else if (isMassSpectrumList(spectra)) {
+            ########## MULTIPLE SPECTRA
             # Peak detection
-            if (allow_parallelization == TRUE) {
+            if (((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply"))) {
                 # Detect the number of cores
                 cpu_thread_number <- detectCores(logical = TRUE)
                 if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
                     cpu_thread_number <- cpu_thread_number / 2
                     peaks <- detectPeaks(spectra, method = peak_picking_algorithm, halfWindowSize = half_window_size, SNR = SNR, mc.cores = cpu_thread_number)
+                    names(peaks) <- names(spectra)
                 } else if (Sys.info()[1] == "Windows") {
                     cpu_thread_number <- cpu_thread_number - 1
                     # Make the cluster (one for each core/thread)
@@ -2592,12 +2777,44 @@ functions_mass_spectrometry <- function() {
                     clusterEvalQ(cl, {library(MALDIquant)})
                     clusterExport(cl = cl, varlist = c("peak_picking_algorithm", "half_window_size", "SNR"), envir = environment())
                     peaks <- parLapply(cl, spectra, fun = function(spectra) detectPeaks(spectra, method = peak_picking_algorithm, halfWindowSize = half_window_size, SNR = SNR))
+                    names(peaks) <- names(spectra)
                     stopCluster(cl)
                 } else {
                     peaks <- detectPeaks(spectra, method = peak_picking_algorithm, halfWindowSize = half_window_size, SNR = SNR)
+                    names(peaks) <- names(spectra)
                 }
+            } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
+                # Load the packages
+                install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
+                ### PARALLEL BACKEND
+                # Detect the number of cores
+                cpu_thread_number <- detectCores(logical = TRUE)
+                if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
+                    cpu_thread_number <- cpu_thread_number / 2
+                    install_and_load_required_packages("doMC")
+                    # Register the foreach backend
+                    registerDoMC(cores = cpu_thread_number)
+                } else if (Sys.info()[1] == "Windows") {
+                    cpu_thread_number <- cpu_thread_number - 1
+                    install_and_load_required_packages("doParallel")
+                    # Register the foreach backend
+                    cl <- makeCluster(cpu_thread_number, type='PSOCK')
+                    registerDoParallel(cl)
+                }
+                # Preserve the list names
+                if (!is.null(names(spectra))) {
+                    list_names <- names(spectra)
+                } else {
+                    list_names <- NULL
+                }
+                peaks <- list()
+                peaks <- foreach(i = 1:length(spectra), .packages = "MALDIquant") %dopar% {
+                    peaks[[i]] <- detectPeaks(spectra[[i]], method = peak_picking_algorithm, halfWindowSize = half_window_size, SNR = SNR)
+                }
+                names(peaks) <- list_names
             } else {
                 peaks <- detectPeaks(spectra, method = peak_picking_algorithm, halfWindowSize = half_window_size, SNR = SNR)
+                names(peaks) <- names(spectra)
             }
         }
         ##### Deisotope peaklist
@@ -2686,7 +2903,7 @@ functions_mass_spectrometry <- function() {
         ##### Multiple peaks
         if (isMassPeaksList(peaks)) {
             ##### Multiple cores
-            if (allow_parallelization == TRUE) {
+            if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
                 # Detect the number of cores
                 cpu_thread_number <- detectCores(logical = TRUE)
                 if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
@@ -2707,6 +2924,36 @@ functions_mass_spectrometry <- function() {
                     # Run the algorithm
                     peaks_deisotoped <- monoisotopicPeaks(peaks, minCor = pattern_model_correlation, tolerance = isotopic_tolerance, distance = isotope_pattern_distance, size = isotopic_pattern_size)
                 }
+            } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
+                # Load the packages
+                install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
+                ### PARALLEL BACKEND
+                # Detect the number of cores
+                cpu_thread_number <- detectCores(logical = TRUE)
+                if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
+                    cpu_thread_number <- cpu_thread_number / 2
+                    install_and_load_required_packages("doMC")
+                    # Register the foreach backend
+                    registerDoMC(cores = cpu_thread_number)
+                } else if (Sys.info()[1] == "Windows") {
+                    cpu_thread_number <- cpu_thread_number - 1
+                    install_and_load_required_packages("doParallel")
+                    # Register the foreach backend
+                    cl <- makeCluster(cpu_thread_number, type='PSOCK')
+                    registerDoParallel(cl)
+                }
+                # Preserve the list names
+                if (!is.null(names(peaks))) {
+                    list_names <- names(peaks)
+                } else {
+                    list_names <- NULL
+                }
+                # Run the algorithm
+                peaks_deisotoped <- list()
+                peaks_deisotoped <- foreach(i = 1:length(peaks), .packages = "MALDIquant") %dopar% {
+                    peaks_deisotoped[[i]] <- monoisotopicPeaks(peaks[[i]], minCor = pattern_model_correlation, tolerance = isotopic_tolerance, distance = isotope_pattern_distance, size = isotopic_pattern_size)
+                }
+                names(peaks_deisotoped) <- list_names
             } else {
                 # Run the algorithm
                 peaks_deisotoped <- monoisotopicPeaks(peaks, minCor = pattern_model_correlation, tolerance = isotopic_tolerance, distance = isotope_pattern_distance, size = isotopic_pattern_size)
@@ -2768,7 +3015,7 @@ functions_mass_spectrometry <- function() {
         ##### Multiple peaks
         if (isMassPeaksList(peaks)) {
             ##### Multiple cores
-            if (allow_parallelization == TRUE) {
+            if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
                 # Detect the number of cores
                 cpu_thread_number <- detectCores(logical = TRUE)
                 if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
@@ -2789,6 +3036,36 @@ functions_mass_spectrometry <- function() {
                     # Run the algorithm
                     peaks_enveloped <- lapply(peaks, FUN = function(peaks) envelope_peaklist_subfunction(peaks))
                 }
+            } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
+                # Load the packages
+                install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
+                ### PARALLEL BACKEND
+                # Detect the number of cores
+                cpu_thread_number <- detectCores(logical = TRUE)
+                if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
+                    cpu_thread_number <- cpu_thread_number / 2
+                    install_and_load_required_packages("doMC")
+                    # Register the foreach backend
+                    registerDoMC(cores = cpu_thread_number)
+                } else if (Sys.info()[1] == "Windows") {
+                    cpu_thread_number <- cpu_thread_number - 1
+                    install_and_load_required_packages("doParallel")
+                    # Register the foreach backend
+                    cl <- makeCluster(cpu_thread_number, type='PSOCK')
+                    registerDoParallel(cl)
+                }
+                # Preserve the list names
+                if (!is.null(names(peaks))) {
+                    list_names <- names(peaks)
+                } else {
+                    list_names <- NULL
+                }
+                # Run the algorithm
+                peaks_enveloped <- list()
+                peaks_enveloped <- foreach(i = 1:length(peaks), .packages = "MALDIquant") %dopar% {
+                    peaks_enveloped[[i]] <- envelope_peaklist_subfunction(peaks[[i]])
+                }
+                names(peak_enveloped) <- list_names
             } else {
                 # Run the algorithm
                 peaks_enveloped <- lapply(peaks, FUN = function(peaks) envelope_peaklist_subfunction(peaks))
@@ -2864,7 +3141,7 @@ functions_mass_spectrometry <- function() {
                 # Average the spectra
                 average_spectrum <- averageMassSpectra(spectra, method = "mean")
                 # Peak picking
-                average_spectrum_peaks <- peak_picking(average_spectrum, peak_picking_algorithm = peak_picking_algorithm, SNR = 5, allow_parallelization = allow_parallelization)
+                average_spectrum_peaks <- peak_picking(average_spectrum, peak_picking_algorithm = peak_picking_algorithm, SNR = 3, allow_parallelization = allow_parallelization)
                 # The reference peaklist is the paklist of the average spectrum
                 reference_peaklist <- createMassPeaks(mass = average_spectrum_peaks@mass, intensity = average_spectrum_peaks@intensity, snr = rep.int(5, length(average_spectrum_peaks@mass)), metaData = list(name = "Reference peaklist AVG"))
             } else if (is.character(reference_peaklist) && reference_peaklist == "average" && is.null(spectra)) {
@@ -2891,7 +3168,7 @@ functions_mass_spectrometry <- function() {
                     #}
                     ############# If there are many peaklists or one peaklist (use multicore)
                     if (isMassPeaksList(peaks_aligned)) {
-                        if (allow_parallelization == TRUE) {
+                        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
                             # Detect the number of cores
                             cpu_thread_number <- detectCores(logical = TRUE)
                             if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
@@ -2908,6 +3185,34 @@ functions_mass_spectrometry <- function() {
                                 peaks_aligned <- parLapply(cl, peaks_aligned, fun = function(peaks_aligned) warpMassPeaks(peaks_aligned, w = warping_functions))
                                 stopCluster(cl)
                             }
+                        } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
+                            # Load the packages
+                            install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
+                            ### PARALLEL BACKEND
+                            # Detect the number of cores
+                            cpu_thread_number <- detectCores(logical = TRUE)
+                            if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
+                                cpu_thread_number <- cpu_thread_number / 2
+                                install_and_load_required_packages("doMC")
+                                # Register the foreach backend
+                                registerDoMC(cores = cpu_thread_number)
+                            } else if (Sys.info()[1] == "Windows") {
+                                cpu_thread_number <- cpu_thread_number - 1
+                                install_and_load_required_packages("doParallel")
+                                # Register the foreach backend
+                                cl <- makeCluster(cpu_thread_number, type='PSOCK')
+                                registerDoParallel(cl)
+                            }
+                            # Preserve the list names
+                            if (!is.null(names(peaks_aligned))) {
+                                list_names <- names(peaks_aligned)
+                            } else {
+                                list_names <- NULL
+                            }
+                            peaks_aligned <- foreach(i = 1:length(peaks_aligned), .packages = "MALDIquant") %dopar% {
+                                peaks_aligned[[i]] <- warpMassPeaks(peaks_aligned[[i]], w = warping_functions)
+                            }
+                            names(peaks_aligned) <- list_names
                         } else {
                             peaks_aligned <- warpMassPeaks(peaks_aligned, w = warping_functions)
                         }
@@ -3698,7 +4003,7 @@ functions_mass_spectrometry <- function() {
     # The function outputs a list containing: a matrix with the classification (pixel-by-pixel and/or profile), MS images with the pixel-by-pixel classification, a matrix with the ensemble classification (pixel-by-pixel and/or profile), MS images with the pixel-by-pixel ensemble classification and the plot of the average spectrum with red bars to indicate the signals used for classification.
     # Parallel computation implemented.
     # It outputs NULL values if the classification cannot be performed due to incompatibilities between the model features and the spectral features.
-    spectral_classification <<- function(spectra_path, filepath_R, model_list = NULL, model_performance_parameter_list = NULL, classification_mode = c("pixel", "profile"), peak_picking_algorithm = "SuperSmoother", deisotope_peaklist = FALSE, preprocessing_parameters = list(mass_range = c(4000,15000), transformation_algorithm = NULL, smoothing_algorithm = "SavitzkyGolay", smoothing_strength = "medium", baseline_subtraction_algorithm = "SNIP", baseline_subtraction_algorithm_parameter = 100, normalization_algorithm = "TIC", normalization_mass_range = NULL, preprocess_spectra_in_packages_of = 0, spectral_alignment_algorithm = NULL), tof_mode = "linear", allow_parallelization = FALSE, decision_method_ensemble = "majority", vote_weights_ensemble = c("equal", "class assignment probabilities"), pixel_grouping = c("single", "moving window average", "graph", "hca"), moving_window_size = 5, number_of_hca_nodes = 10, number_of_spectra_partitions_graph = 1, partitioning_method_graph = "space", correlation_method_for_adjacency_matrix = "pearson", correlation_threshold_for_adjacency_matrix = 0.95, pvalue_threshold_for_adjacency_matrix = 0.05, max_GA_generations = 10, iterations_with_no_change_GA = 5, seed = 12345, classification_mode_graph = c("average spectra", "single spectra clique"), features_to_use_for_graph = c("all", "model"), plot_figures = TRUE, plot_graphs = TRUE, plot_legends = c("sample name", "legend", "plot name"), progress_bar = NULL) {
+    spectral_classification <<- function(spectra_path, filepath_R = NULL, model_list, model_performance_parameter_list = NULL, classification_mode = c("pixel", "profile"), peak_picking_algorithm = "SuperSmoother", deisotope_peaklist = FALSE, preprocessing_parameters = list(mass_range = c(4000,15000), transformation_algorithm = NULL, smoothing_algorithm = "SavitzkyGolay", smoothing_strength = "medium", baseline_subtraction_algorithm = "SNIP", baseline_subtraction_algorithm_parameter = 100, normalization_algorithm = "TIC", normalization_mass_range = NULL, preprocess_spectra_in_packages_of = 0, spectral_alignment_algorithm = NULL), tof_mode = "linear", allow_parallelization = FALSE, decision_method_ensemble = "majority", vote_weights_ensemble = c("equal", "class assignment probabilities"), pixel_grouping = c("single", "moving window average", "graph", "hca"), moving_window_size = 5, number_of_hca_nodes = 10, number_of_spectra_partitions_graph = 1, partitioning_method_graph = "space", correlation_method_for_adjacency_matrix = "pearson", correlation_threshold_for_adjacency_matrix = 0.95, pvalue_threshold_for_adjacency_matrix = 0.05, max_GA_generations = 10, iterations_with_no_change_GA = 5, seed = 12345, classification_mode_graph = c("average spectra", "single spectra clique"), features_to_use_for_graph = c("all", "model"), plot_figures = TRUE, plot_graphs = TRUE, plot_legends = c("sample name", "legend", "plot name"), progress_bar = NULL) {
         ### Install and load the required packages
         install_and_load_required_packages(c("MALDIquant", "MALDIquantForeign", "XML", "stats", "parallel", "kernlab", "MASS", "klaR", "pls", "randomForest", "lda", "caret", "nnet"))
         ### Defaults
@@ -4080,7 +4385,8 @@ functions_mass_spectrometry <- function() {
     feature_selection <<- function(training_set, feature_selection_method = "ANOVA", features_to_select = 20, selection_method = "pls", selection_metric = "Kappa", correlation_method = "pearson", correlation_threshold = 0.75, auc_threshold = 0.7, cv_repeats_control = 5, k_fold_cv_control = 10, discriminant_attribute = "Class", non_features = c("Sample", "Class", "THY"), seed = NULL, automatically_select_features = FALSE, generate_plots = TRUE, preprocessing = c("center","scale"), allow_parallelization = FALSE, feature_reranking = FALSE) {
         # Load the required libraries
         install_and_load_required_packages(c("stats", "pROC"))
-        if (allow_parallelization == TRUE) {
+        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach") || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
+            allow_parallelization <- TRUE
             ### PARALLEL BACKEND
             # Detect the number of cores
             cpu_thread_number <- detectCores(logical = TRUE)
@@ -4249,7 +4555,8 @@ functions_mass_spectrometry <- function() {
         # Load the required libraries
         install_and_load_required_packages(c("caret", "stats", "pROC", "nnet", "e1071", "kernlab", "randomForest", "klaR", "MASS", "pls", "iterators", "nnet", "SparseM", "stringi"))
         # Parallelization
-        if (allow_parallelization == TRUE) {
+        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach") || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
+            allow_parallelization <- TRUE
             ### PARALLEL BACKEND
             # Detect the number of cores
             cpu_thread_number <- detectCores(logical = TRUE)
@@ -4323,7 +4630,7 @@ functions_mass_spectrometry <- function() {
         }
         names(peaklist_feature_selection) <- c(as.character(predictors_feature_selection), non_features)
         # Close the cluster for Windows
-        if (allow_parallelization == TRUE) {
+        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach") || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
             # Close the parallelization cluster (on Windows)
             if (Sys.info()[1] == "Windows") {
                 stopCluster(cl)
@@ -4402,7 +4709,8 @@ functions_mass_spectrometry <- function() {
         # Load the required libraries
         install_and_load_required_packages(c("caret", "stats", "pROC", "nnet", "e1071", "kernlab", "randomForest", "klaR", "MASS", "pls", "iterators", "nnet", "SparseM", "stringi", "lda"))
         # Parallelization
-        if (allow_parallelization == TRUE) {
+        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach") || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
+            allow_parallelization <- TRUE
             ### PARALLEL BACKEND
             # Detect the number of cores
             cpu_thread_number <- detectCores(logical = TRUE)
@@ -4522,26 +4830,31 @@ functions_mass_spectrometry <- function() {
             # Define the control function
             train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE)
             # Define the model tuned
-            fs_model <- train(x = training_set_feature_selection[, !(names(training_set_feature_selection) %in% non_features)], y = training_set_feature_selection[, discriminant_attribute], method = selection_method, preProcess = preprocessing, tuneGrid = expand.grid(model_tune_grid), trControl = train_ctrl, metric = selection_metric)
+            fs_model_tuning <- train(x = training_set_feature_selection[, !(names(training_set_feature_selection) %in% non_features)], y = training_set_feature_selection[, discriminant_attribute], method = selection_method, preProcess = preprocessing, tuneGrid = expand.grid(model_tune_grid), trControl = train_ctrl, metric = selection_metric)
             # Plots
             if (generate_plots == TRUE) {
                 model_tuning_graphics <- NULL
                 try({
-                    model_tuning_graphics <- plot(fs_model, type = c("g","o"))
+                    model_tuning_graphics <- plot(fs_model_tuning, type = c("g","o"))
                 }, silent = TRUE)
             } else {
                 model_tuning_graphics <- NULL
             }
             # Model performances
             if (selection_metric == "kappa" || selection_metric == "Kappa") {
-                fs_model_performance <- as.numeric(max(fs_model$results$Kappa, na.rm = TRUE))
-                names(fs_model_performance) <- "Kappa"
+                fs_model_performance_tuning <- as.numeric(max(fs_model_tuning$results$Kappa, na.rm = TRUE))
+                names(fs_model_performance_tuning) <- "Kappa"
             } else if (selection_metric == "accuracy" || selection_metric == "Accuracy") {
-                fs_model_performance <- as.numeric(max(fs_model$results$Accuracy, na.rm = TRUE))
-                names(fs_model_performance) <- "Accuracy"
+                fs_model_performance_tuning <- as.numeric(max(fs_model_tuning$results$Accuracy, na.rm = TRUE))
+                names(fs_model_performance_tuning) <- "Accuracy"
+            }
+            ## Keep the model and the performance values only if the tuning yields more performances that just after the RFE
+            if (fs_model_performance_tuning > fs_model_performance) {
+                fs_model_performance <- fs_model_performance_tuning
+                fs_model <- fs_model_tuning
             }
         }
-        if (allow_parallelization == TRUE) {
+        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach") || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
             # Close the parallelization cluster (on Windows)
             if (Sys.info()[1] == "Windows") {
                 stopCluster(cl)
@@ -5035,7 +5348,8 @@ functions_mass_spectrometry <- function() {
         # Load the required libraries
         install_and_load_required_packages(c("caret", "stats", "pROC", "nnet", "e1071", "kernlab", "randomForest", "klaR", "MASS", "pls", "iterators", "nnet", "SparseM", "stringi"))
         ### Parallelization
-        if (allow_parallelization == TRUE) {
+        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach") || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
+            allow_parallelization <- TRUE
             ### PARALLEL BACKEND
             # Detect the number of cores
             cpu_thread_number <- detectCores(logical = TRUE)
@@ -5081,7 +5395,7 @@ functions_mass_spectrometry <- function() {
             fs_model_plot <- NULL
         }
         ### Stop the parallel cluster for Windows
-        if (allow_parallelization == TRUE) {
+        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach") || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
             # Close the parallelization cluster (on Windows)
             if (Sys.info()[1] == "Windows") {
                 stopCluster(cl)
@@ -5381,7 +5695,7 @@ functions_mass_spectrometry <- function() {
     #################### SPECTRAL TYPER SCORE ACCORDING TO THE HIERARCHICAL DISTANCE
     # This function computes the Spectral Typer score by comparing the test spectra with the library spectra, determining the similarity (through the euclidean distance) and assigning a category according to the distance.
     # Each sample gets compared with all the entries in the database, simultaneously.
-    spectral_typer_score_hierarchical_distance <<- function(spectra_database, spectra_test, peaks_database, peaks_test, class_list_library = NULL, peaks_filtering_percentage_threshold = 5, low_intensity_percentage_threshold = 0, low_intensity_threshold_method = "element-wise", tof_mode = "linear", spectra_path_output = TRUE, score_only = TRUE, spectra_format = "brukerflex", normalize_distances = TRUE, normalization_method = "sum", hierarchical_distance_method = "euclidean", allow_parallelization = FALSE) {
+    spectral_typer_score_hierarchical_distance <<- function(spectra_database, spectra_test, peaks_database, peaks_test, class_list_library = NULL, peaks_filtering_percentage_threshold = 5, low_intensity_percentage_threshold = 0, low_intensity_threshold_method = "element-wise", tof_mode = "linear", spectra_path_output = TRUE, score_only = TRUE, spectra_format = "brukerflex", normalize_distances = TRUE, normalization_method = "sum", hierarchical_distance_method = "euclidean") {
         # Load the required libraries
         install_and_load_required_packages(c("MALDIquant", "XML", "stats", "ggplot2", "ggdendro"))
         # Rename the trim function
@@ -5755,7 +6069,7 @@ functions_mass_spectrometry <- function() {
             return(list(number_of_signals_samples = number_of_signals_samples, number_of_signals_database_matrix = number_of_signals_database_matrix, matching_signals_matrix = matching_signals_matrix, fit_matrix = fit_matrix, retrofit_matrix = retrofit_matrix, intensity_correlation_matrix = intensity_correlation_matrix, pvalue_matrix = pvalue_matrix, slope_matrix = slope_matrix))
         }
         ##### Run the function for each element of the global_list (= each sample) (each sample gets compared with the database)
-        if (allow_parallelization == TRUE) {
+        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
             # Detect the number of cores
             cpu_thread_number <- detectCores(logical = TRUE)
             if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
@@ -5774,6 +6088,35 @@ functions_mass_spectrometry <- function() {
             } else {
                 output_list <- lapply(global_list, FUN = function(global_list) comparison_sample_db_subfunction_correlation(global_list))
             }
+        } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
+            # Load the packages
+            install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
+            ### PARALLEL BACKEND
+            # Detect the number of cores
+            cpu_thread_number <- detectCores(logical = TRUE)
+            if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
+                cpu_thread_number <- cpu_thread_number / 2
+                install_and_load_required_packages("doMC")
+                # Register the foreach backend
+                registerDoMC(cores = cpu_thread_number)
+            } else if (Sys.info()[1] == "Windows") {
+                cpu_thread_number <- cpu_thread_number - 1
+                install_and_load_required_packages("doParallel")
+                # Register the foreach backend
+                cl <- makeCluster(cpu_thread_number, type='PSOCK')
+                registerDoParallel(cl)
+            }
+            # Preserve the list names
+            if (!is.null(names(global_list))) {
+                list_names <- names(global_list)
+            } else {
+                list_names <- NULL
+            }
+            output_list <- list()
+            output_list <- foreach(i = 1:length(global_list)) %dopar% {
+                output_list[[i]] <- comparison_sample_db_subfunction_correlation(global_list[[i]])
+            }
+            names(output_list) <- list_names
         } else {
             output_list <- lapply(global_list, FUN = function(global_list) comparison_sample_db_subfunction_correlation(global_list))
         }
@@ -6203,7 +6546,7 @@ functions_mass_spectrometry <- function() {
             return(list(number_of_signals_samples = number_of_signals_samples, number_of_signals_database_matrix = number_of_signals_database_matrix, matching_signals_matrix = matching_signals_matrix, fit_matrix = fit_matrix, retrofit_matrix = retrofit_matrix, intensity_matching_matrix = intensity_matching_matrix))
         }
         ##### Run the function for each element of the global_list (= each sample) (each sample gets compared with the database)
-        if (allow_parallelization == TRUE) {
+        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
             # Detect the number of cores
             cpu_thread_number <- detectCores(logical = TRUE)
             if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
@@ -6220,6 +6563,35 @@ functions_mass_spectrometry <- function() {
                 output_list <- parLapply(cls, global_list, fun = function(global_list) comparison_sample_db_subfunction_intensity(global_list))
                 stopCluster(cls)
             }
+        } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
+            # Load the packages
+            install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
+            ### PARALLEL BACKEND
+            # Detect the number of cores
+            cpu_thread_number <- detectCores(logical = TRUE)
+            if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
+                cpu_thread_number <- cpu_thread_number / 2
+                install_and_load_required_packages("doMC")
+                # Register the foreach backend
+                registerDoMC(cores = cpu_thread_number)
+            } else if (Sys.info()[1] == "Windows") {
+                cpu_thread_number <- cpu_thread_number - 1
+                install_and_load_required_packages("doParallel")
+                # Register the foreach backend
+                cl <- makeCluster(cpu_thread_number, type='PSOCK')
+                registerDoParallel(cl)
+            }
+            # Preserve the list names
+            if (!is.null(names(global_list))) {
+                list_names <- names(global_list)
+            } else {
+                list_names <- NULL
+            }
+            output_list <- list()
+            output_list <- foreach(i = 1:length(global_list)) %dopar% {
+                output_list[[i]] <- comparison_sample_db_subfunction_intensity(global_list[[i]])
+            }
+            names(output_list) <- list_names
         } else {
             output_list <- lapply(global_list, FUN = function(global_list) comparison_sample_db_subfunction_intensity(global_list))
         }
@@ -6493,7 +6865,7 @@ functions_mass_spectrometry <- function() {
             return(list(number_of_signals_samples = number_of_signals_samples, number_of_signals_database_matrix = number_of_signals_database_matrix, matching_signals_matrix = matching_signals_matrix, fit_matrix = fit_matrix, retrofit_matrix = retrofit_matrix, similarity_index_matrix = similarity_index_matrix))
         }
         ##### Run the function for each element of the global_list (= each sample) (each sample gets compared with the database)
-        if (allow_parallelization == TRUE) {
+        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
             # Detect the number of cores
             cpu_thread_number <- detectCores(logical = TRUE)
             if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
@@ -6509,6 +6881,18 @@ functions_mass_spectrometry <- function() {
                 output_list <- parLapply(cls, global_list, fun = function(global_list) comparison_sample_db_subfunction_similarity_index(global_list))
                 stopCluster(cls)
             }
+        } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
+            # Preserve the list names
+            if (!is.null(names(global_list))) {
+                list_names <- names(global_list)
+            } else {
+                list_names <- NULL
+            }
+            output_list <- list()
+            output_list <- foreach(i = 1:length(global_list)) %dopar% {
+                output_list[[i]] <- comparison_sample_db_subfunction_similarity_index(global_list[[i]])
+            }
+            names(output_list) <- list_names
         } else {
             output_list <- lapply(global_list, FUN = function(global_list) comparison_sample_db_subfunction_similarity_index(global_list))
         }
@@ -6819,7 +7203,7 @@ functions_mass_spectrometry <- function() {
                 }
                 # Fix the peak values (with LAPPLY)
                 if (isMassPeaksList(peaks)) {
-                    if (allow_parallelization == TRUE) {
+                    if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
                         # Detect the number of cores
                         cpu_thread_number <- detectCores(logical = TRUE)
                         if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
@@ -6839,6 +7223,35 @@ functions_mass_spectrometry <- function() {
                         } else {
                             peaks <- lapply(peaks, FUN = function(peaks) peak_alignment_subfunction(peaks = peaks, reference_masses = custom_feature_vector, tolerance_ppm = tolerance_ppm))
                         }
+                    } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
+                        # Load the packages
+                        install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
+                        ### PARALLEL BACKEND
+                        # Detect the number of cores
+                        cpu_thread_number <- detectCores(logical = TRUE)
+                        if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
+                            cpu_thread_number <- cpu_thread_number / 2
+                            install_and_load_required_packages("doMC")
+                            # Register the foreach backend
+                            registerDoMC(cores = cpu_thread_number)
+                        } else if (Sys.info()[1] == "Windows") {
+                            cpu_thread_number <- cpu_thread_number - 1
+                            install_and_load_required_packages("doParallel")
+                            # Register the foreach backend
+                            cl <- makeCluster(cpu_thread_number, type='PSOCK')
+                            registerDoParallel(cl)
+                        }
+                        # Preserve the list names
+                        if (!is.null(names(peaks))) {
+                            list_names <- names(peaks)
+                        } else {
+                            list_names <- NULL
+                        }
+                        # Run the function
+                        peaks <- foreach(i = 1:length(peaks), .packages = "MALDIquant") %dopar% {
+                            peaks[[i]] <- peak_alignment_subfunction(peaks = peaks[[i]], reference_masses = custom_feature_vector, tolerance_ppm = tolerance_ppm)
+                        }
+                        names(peaks) <- list_names
                     } else {
                         peaks <- lapply(peaks, FUN = function(peaks) peak_alignment_subfunction(peaks = peaks, reference_masses = custom_feature_vector, tolerance_ppm = tolerance_ppm))
                     }
@@ -7425,7 +7838,8 @@ functions_mass_spectrometry <- function() {
         triangle_number_graph <- nrow(triangle_matrix)
         # Population size
         population_size <- vertex_number * 10
-        if (allow_parallelization == TRUE) {
+        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach") || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
+            allow_parallelization <- TRUE
             ### PARALLEL BACKEND
             # Detect the number of cores
             cpu_thread_number <- detectCores(logical = TRUE)
@@ -7443,7 +7857,7 @@ functions_mass_spectrometry <- function() {
             }
         }
         # Establish if the parallel computation can be performed or not in the GA (otherwise it returns an error)
-        if (allow_parallelization == TRUE) {
+        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach") || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
             if (cpu_thread_number > 1) {
                 GA_parallel <- TRUE
             } else {
@@ -7551,8 +7965,10 @@ functions_mass_spectrometry <- function() {
         #out <- summary(GA_model)
         #cat(out)
         # Stop the cluster for parallel computing (only on Windows)
-        if (Sys.info()[1] == "Windows" && allow_parallelization == TRUE) {
-            stopCluster(cls)
+        if ((is.logical(allow_parallelization) && allow_parallelization == TRUE) || (is.character(allow_parallelization) && allow_parallelization == "foreach") || (is.character(allow_parallelization) && allow_parallelization == "lapply")) {
+            if (Sys.info()[1] == "Windows") {
+                stopCluster(cls)
+            }
         }
         # Extract the final graph
         best_solution <- GA_model@solution[1,]
@@ -7926,6 +8342,7 @@ functions_mass_spectrometry <- function() {
 
 
 
+
 ####################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################
 
 
@@ -7977,7 +8394,9 @@ ms_peaklist_export <- function() {
     
     
     ### Program version (Specified by the program writer!!!!)
-    R_script_version <- "2017.06.12.4"
+    R_script_version <- "2017.06.13.0"
+    ### Force update (in case something goes wrong after an update, when checking for updates and reading the variable force_update, the script can automatically download the latest working version, even if the rest of the script is corrupted, because it is the first thing that reads)
+    force_update <- FALSE
     ### GitHub URL where the R file is
     github_R_url <- "https://raw.githubusercontent.com/gmanuel89/MS-Peaklist-Export/master/MS%20PEAKLIST%20EXPORT.R"
     ### GitHub URL of the program's WIKI
@@ -8061,10 +8480,12 @@ ms_peaklist_export <- function() {
     
     ##################################################### DEFINE WHAT THE BUTTONS DO
     
-    ##### Check for updates (from my GitHub page) (it just updates the label telling the user if there are updates) (it updates the check for updates value that is called by the label)
+    ##### Check for updates (from my GitHub page) (it just updates the label telling the user if there are updates) (it updates the check for updates value that is called by the label). The function will read also if an update should be forced.
     check_for_updates_function <- function() {
         ### Initialize the version number
         online_version_number <- NULL
+        ### Initialize the force update
+        online_force_update <- NULL
         ### Initialize the variable that says if there are updates
         update_available <- FALSE
         ### Initialize the change log
@@ -8078,7 +8499,7 @@ ms_peaklist_export <- function() {
                 online_file <- readLines(con = github_R_url)
                 ### Retrieve the version number
                 for (l in online_file) {
-                    if (length(grep("R_script_version", l, fixed = TRUE)) > 0) {
+                    if (length(grep("R_script_version <-", l, fixed = TRUE)) > 0) {
                         # Isolate the "variable" value
                         online_version_number <- unlist(strsplit(l, "R_script_version <- ", fixed = TRUE))[2]
                         # Remove the quotes
@@ -8086,9 +8507,20 @@ ms_peaklist_export <- function() {
                         break
                     }
                 }
+                ### Retrieve the force update
+                for (l in online_file) {
+                    if (length(grep("force_update <-", l, fixed = TRUE)) > 0) {
+                        # Isolate the "variable" value
+                        online_force_update <- as.logical(unlist(strsplit(l, "force_update <- ", fixed = TRUE))[2])
+                        break
+                    }
+                    if (is.null(online_force_update)) {
+                        online_force_update <- FALSE
+                    }
+                }
                 ### Retrieve the change log
                 for (l in online_file) {
-                    if (length(grep("change_log", l, fixed = TRUE)) > 0) {
+                    if (length(grep("change_log <-", l, fixed = TRUE)) > 0) {
                         # Isolate the "variable" value
                         online_change_log <- unlist(strsplit(l, "change_log <- ", fixed = TRUE))[2]
                         # Remove the quotes
@@ -8156,12 +8588,13 @@ ms_peaklist_export <- function() {
         online_change_log <<- online_change_log
         check_for_updates_value <<- check_for_updates_value
         online_version_number <<- online_version_number
+        online_force_update <<- online_force_update
     }
     
     ##### Download the updated file (from my GitHub page)
     download_updates_function <- function() {
         # Download updates only if there are updates available
-        if (update_available == TRUE) {
+        if (update_available == TRUE || online_force_update == TRUE) {
             # Initialize the variable which says if the file has been downloaded successfully
             file_downloaded <- FALSE
             # Choose where to save the updated script
@@ -8174,11 +8607,11 @@ ms_peaklist_export <- function() {
                 tkmessageBox(message = paste("The updated script file will be downloaded in:\n\n", download_folder, sep = ""))
                 # Download the file
                 try({
-                    download.file(url = github_R_url, destfile = paste(script_file_name, " (", online_version_number, ").R", sep = ""), method = "auto")
+                    download.file(url = github_R_url, destfile = paste0(script_file_name, ".R"), method = "auto")
                     file_downloaded <- TRUE
                 }, silent = TRUE)
                 if (file_downloaded == TRUE) {
-                    tkmessageBox(title = "Updated file downloaded!", message = paste("The updated script, named:\n\n", paste(script_file_name, " (", online_version_number, ").R", sep = ""), "\n\nhas been downloaded to:\n\n", download_folder, "\n\nClose everything, delete this file and run the script from the new file!", sep = ""), icon = "info")
+                    tkmessageBox(title = "Updated file downloaded!", message = paste("The updated script, named:\n\n", paste0(script_file_name, ".R"), "\n\nhas been downloaded to:\n\n", download_folder, "\n\nClose everything, delete this file and run the script from the new file!", sep = ""), icon = "info")
                     tkmessageBox(title = "Changelog", message = paste("The updated script contains the following changes:\n", online_change_log, sep = ""), icon = "info")
                 } else {
                     tkmessageBox(title = "Connection problem", message = paste("The updated script file could not be downloaded due to internet connection problems!\n\nManually download the updated script file at:\n\n", github_R_url, sep = ""), icon = "warning")
@@ -8190,8 +8623,14 @@ ms_peaklist_export <- function() {
         } else {
             tkmessageBox(title = "No update available", message = "NO UPDATES AVAILABLE!\n\nThe latest version is running!", icon = "info")
         }
-        # Raise the focus on the main window
-        tkraise(window)
+        # Raise the focus on the main window (if there is)
+        try(tkraise(window), silent = TRUE)
+    }
+    
+    ### Downloading forced updates
+    check_for_updates_function()
+    if (online_force_update == TRUE) {
+        download_updates_function()
     }
     
     ##### Preprocessing window
@@ -8708,24 +9147,28 @@ ms_peaklist_export <- function() {
     ##### Multicore processing
     allow_parallelization_choice <- function() {
         ##### Messagebox
-        tkmessageBox(title = "Parallel processing is resource hungry", message = "Parallel processing is resource hungry. By activating it, the computation becomes faster, but the program will eat a lot of RAM, possibly causing your computer to freeze. If you want to play safe, do not enable it", icon = "warning")
+        tkmessageBox(title = "Parallel processing is resource hungry", message = "Parallel processing is resource hungry.\nBy activating it, the computation becomes faster, but the program will eat a lot of RAM, possibly causing your computer to freeze. If you want to play safe, do not enable it", icon = "warning")
         # Catch the value from the menu
-        allow_parallelization <- select.list(c("YES","NO"), title="Choose", multiple = FALSE, preselect = "NO")
+        allow_parallelization <- select.list(c("YES","NO"), title = "Parallelization", multiple = FALSE, preselect = "NO")
         # Default
         if (allow_parallelization == "YES") {
-            allow_parallelization <- TRUE
+            if (Sys.info()[1] == "Windows") {
+                allow_parallelization <- "foreach"
+            } else {
+                allow_parallelization <- "lapply"
+            }
         }
         if (allow_parallelization == "NO" || allow_parallelization == "") {
             allow_parallelization <- FALSE
         }
         # Set the value of the displaying label
-        if (allow_parallelization == TRUE) {
+        if (allow_parallelization == "foreach" || allow_parallelization == "lapply") {
             allow_parallelization_value <- "YES"
         } else {
             allow_parallelization_value <- "NO"
         }
         allow_parallelization_value_label <- tklabel(window, text = allow_parallelization_value, font = label_font, bg = "white", width = 20)
-        tkgrid(allow_parallelization_value_label, row = 7, column = 4, padx = c(10, 10), pady = c(10, 10))
+        tkgrid(allow_parallelization_value_label, row = 7, column = 4)
         # Escape the function
         allow_parallelization <<- allow_parallelization
         allow_parallelization_value <<- allow_parallelization_value
@@ -9239,9 +9682,6 @@ ms_peaklist_export <- function() {
     
     ##################################################################### WINDOW GUI
     
-    ### Check for updates
-    check_for_updates_function()
-    
     ########## List of variables, whose values are taken from the entries in the GUI
     SNR <- tclVar("")
     peak_filtering_threshold_percentage <- tclVar("")
@@ -9527,3 +9967,4 @@ ms_peaklist_export <- function() {
 
 ### Run the function
 ms_peaklist_export()
+
