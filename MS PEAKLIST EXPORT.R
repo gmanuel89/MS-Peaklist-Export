@@ -768,8 +768,6 @@ functions_mass_spectrometry <- function() {
                             peaks_filtered <- lapply(peaks, FUN = function(peaks) intensity_filtering_subfunction_element(peaks, low_intensity_peak_removal_threshold_percent))
                         }
                     } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
-                        # Load the packages
-                        install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
                         ### PARALLEL BACKEND
                         # Detect the number of cores
                         cpu_thread_number <- detectCores(logical = TRUE)
@@ -879,8 +877,6 @@ functions_mass_spectrometry <- function() {
                             peaks_filtered <- lapply(peaks, FUN = function(peaks) intensity_filtering_subfunction_whole(peaks, low_intensity_peak_removal_threshold_percent, highest_intensity))
                         }
                     } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
-                        # Load the packages
-                        install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
                         ### PARALLEL BACKEND
                         # Detect the number of cores
                         cpu_thread_number <- detectCores(logical = TRUE)
@@ -1550,8 +1546,6 @@ functions_mass_spectrometry <- function() {
                         spectra_binned <- lapply(spectra, FUN = function (spectra) binning_subfunction(spectra, final_data_points, binning_method))
                     }
                 } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
-                    # Load the packages
-                    install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
                     ### PARALLEL BACKEND
                     # Detect the number of cores
                     cpu_thread_number <- detectCores(logical = TRUE)
@@ -1644,8 +1638,6 @@ functions_mass_spectrometry <- function() {
                     spectra <- lapply(spectra, FUN = function(spectra) backslash_replacing_subfunction(spectra))
                 }
             } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
-                # Load the packages
-                install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
                 ### PARALLEL BACKEND
                 # Detect the number of cores
                 cpu_thread_number <- detectCores(logical = TRUE)
@@ -1853,8 +1845,6 @@ functions_mass_spectrometry <- function() {
                     spectra <- lapply(spectra, FUN = function(spectra) name_replacing_subfunction(spectra, spectra_format = spectra_format))
                 }
             } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
-                # Load the packages
-                install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
                 ### PARALLEL BACKEND
                 # Detect the number of cores
                 cpu_thread_number <- detectCores(logical = TRUE)
@@ -2332,8 +2322,6 @@ functions_mass_spectrometry <- function() {
                         spectra_temp <- lapply(spectra_temp, FUN = function(spectra_temp) preprocessing_subfunction(spectra_temp, mass_range = mass_range, transformation_algorithm = transformation_algorithm, smoothing_algorithm = smoothing_algorithm, smoothing_half_window_size = smoothing_half_window_size, baseline_subtraction_algorithm = baseline_subtraction_algorithm, baseline_subtraction_algorithm_parameter = baseline_subtraction_algorithm_parameter, normalization_algorithm = normalization_algorithm, normalization_mass_range = normalization_mass_range))
                     }
                 } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
-                    # Load the packages
-                    install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
                     ### PARALLEL BACKEND
                     # Detect the number of cores
                     cpu_thread_number <- detectCores(logical = TRUE)
@@ -2614,8 +2602,6 @@ functions_mass_spectrometry <- function() {
                     most_intense_peaks <- lapply(peaks, FUN = function(peaks) picking_subfunction(peaks, signals_to_take = signals_to_take))
                 }
             } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
-                # Load the packages
-                install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
                 ### PARALLEL BACKEND
                 # Detect the number of cores
                 cpu_thread_number <- detectCores(logical = TRUE)
@@ -2784,8 +2770,6 @@ functions_mass_spectrometry <- function() {
                     names(peaks) <- names(spectra)
                 }
             } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
-                # Load the packages
-                install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
                 ### PARALLEL BACKEND
                 # Detect the number of cores
                 cpu_thread_number <- detectCores(logical = TRUE)
@@ -2925,8 +2909,6 @@ functions_mass_spectrometry <- function() {
                     peaks_deisotoped <- monoisotopicPeaks(peaks, minCor = pattern_model_correlation, tolerance = isotopic_tolerance, distance = isotope_pattern_distance, size = isotopic_pattern_size)
                 }
             } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
-                # Load the packages
-                install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
                 ### PARALLEL BACKEND
                 # Detect the number of cores
                 cpu_thread_number <- detectCores(logical = TRUE)
@@ -3037,8 +3019,6 @@ functions_mass_spectrometry <- function() {
                     peaks_enveloped <- lapply(peaks, FUN = function(peaks) envelope_peaklist_subfunction(peaks))
                 }
             } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
-                # Load the packages
-                install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
                 ### PARALLEL BACKEND
                 # Detect the number of cores
                 cpu_thread_number <- detectCores(logical = TRUE)
@@ -3186,8 +3166,6 @@ functions_mass_spectrometry <- function() {
                                 stopCluster(cl)
                             }
                         } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
-                            # Load the packages
-                            install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
                             ### PARALLEL BACKEND
                             # Detect the number of cores
                             cpu_thread_number <- detectCores(logical = TRUE)
@@ -6089,8 +6067,6 @@ functions_mass_spectrometry <- function() {
                 output_list <- lapply(global_list, FUN = function(global_list) comparison_sample_db_subfunction_correlation(global_list))
             }
         } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
-            # Load the packages
-            install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
             ### PARALLEL BACKEND
             # Detect the number of cores
             cpu_thread_number <- detectCores(logical = TRUE)
@@ -6564,8 +6540,6 @@ functions_mass_spectrometry <- function() {
                 stopCluster(cls)
             }
         } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
-            # Load the packages
-            install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
             ### PARALLEL BACKEND
             # Detect the number of cores
             cpu_thread_number <- detectCores(logical = TRUE)
@@ -6882,6 +6856,21 @@ functions_mass_spectrometry <- function() {
                 stopCluster(cls)
             }
         } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
+            ### PARALLEL BACKEND
+            # Detect the number of cores
+            cpu_thread_number <- detectCores(logical = TRUE)
+            if (Sys.info()[1] == "Linux" || Sys.info()[1] == "Darwin") {
+                cpu_thread_number <- cpu_thread_number / 2
+                install_and_load_required_packages("doMC")
+                # Register the foreach backend
+                registerDoMC(cores = cpu_thread_number)
+            } else if (Sys.info()[1] == "Windows") {
+                cpu_thread_number <- cpu_thread_number - 1
+                install_and_load_required_packages("doParallel")
+                # Register the foreach backend
+                cl <- makeCluster(cpu_thread_number, type='PSOCK')
+                registerDoParallel(cl)
+            }
             # Preserve the list names
             if (!is.null(names(global_list))) {
                 list_names <- names(global_list)
@@ -7224,8 +7213,6 @@ functions_mass_spectrometry <- function() {
                             peaks <- lapply(peaks, FUN = function(peaks) peak_alignment_subfunction(peaks = peaks, reference_masses = custom_feature_vector, tolerance_ppm = tolerance_ppm))
                         }
                     } else if (is.character(allow_parallelization) && allow_parallelization == "foreach") {
-                        # Load the packages
-                        install_and_load_required_packages(c("foreach", "doMC", "doParallel"))
                         ### PARALLEL BACKEND
                         # Detect the number of cores
                         cpu_thread_number <- detectCores(logical = TRUE)
@@ -8394,7 +8381,7 @@ ms_peaklist_export <- function() {
     
     
     ### Program version (Specified by the program writer!!!!)
-    R_script_version <- "2017.06.13.0"
+    R_script_version <- "2017.06.13.1"
     ### Force update (in case something goes wrong after an update, when checking for updates and reading the variable force_update, the script can automatically download the latest working version, even if the rest of the script is corrupted, because it is the first thing that reads)
     force_update <- FALSE
     ### GitHub URL where the R file is
