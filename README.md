@@ -3,7 +3,7 @@
 ***
 
 ## Program version
-In order for this WIKI to be applicable, the version of the program must be equal to or higher than **2017.05.31.0**.
+In order for this WIKI to be applicable, the version of the program must be equal to or higher than **2017.06.19.0**.
 
 ***
 
@@ -89,6 +89,7 @@ The spectra files are placed in a folder with the same name as the peaklist file
         * *Median*: It divides the intensities of the spectrum by the median of all the intensity values of the spectrum itself. It has been proved to be the most robust normalization method.
     * **_Align spectra_**: selects if alignment of spectra should be performed, by generating a calibration curve ("cubic", "quadratic", "linear", "lowess") employing an automatically generated peaklist ("auto") as reference or by taking the peaks of the "average spectrum" or of the "skyline spectrum" as reference.
     * **_Preprocess spectra in packages of_**: defines the number of spectra to be taken at a time for preprocessing, when the computer resources are limited (taking all the spectra in RAM could cause the computer to freeze).
+    * **_Tolerance (in ppm)_**: defines the tolerance (in ppm, parts per million) for the spectral alignment, peak alignment and database-sample signal match. For linear TOF mode the tolerance should be set to 1000 ppm (0.1%, 4 Da at 4000 Da), while for reflectron TOF mode the tolerance should be set to 100 ppm (0.01%, 0.2 Da at 2000 Da).
     * **_Commit preprocessing_**: stores the preprocessing parameters to be applied for analysis.
 
 * **Browse spectra**: selects the single spectral "file" (e.g. single imzML file) or the "folder" in which all the spectral files are stored.
