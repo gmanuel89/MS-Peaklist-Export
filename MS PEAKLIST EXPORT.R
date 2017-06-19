@@ -297,11 +297,11 @@ functions_mass_spectrometry <- function() {
                 for (m in 1:length(model_performance_parameter_list)) {
                     # For each class...
                     for (cl in 1:length(class_list)) {
-                        # If the predicted class (by the model) corresponds to the class in evaluation, the probability associated is the likelihood P(d=1|h=1), otherwise it is 1-likelihood P(d=0|h=1)
+                        # If the predicted class (by the model) corresponds to the class in evaluation, the probability associated is the sensitivity (true positive rate -> TPR) for that class P(d=1|h=1), otherwise it is 1-sensitivity (or false positive rate -> FPR) for that class P(d=0|h=1)
                         if (predicted_classes_models[m] == class_list[cl]) {
-                            bayesian_prob <- model_performance_parameter_list[[m]][[(predicted_classes_models[m])]][["sensitivity"]]
+                            bayesian_prob <- model_performance_parameter_list[[m]][[(predicted_classes_models[m])]][["TPR"]]
                         } else {
-                            bayesian_prob <- 1 - model_performance_parameter_list[[m]][[(predicted_classes_models[m])]][["sensitivity"]]
+                            bayesian_prob <- model_performance_parameter_list[[m]][[(predicted_classes_models[m])]][["FPR"]]
                         }
                         # Append the probability to the vector of probabilities 
                         if (is.null(class_probs_list[[(class_list[cl])]])) {
@@ -5310,13 +5310,20 @@ functions_mass_spectrometry <- function() {
             for (cl in 1:length(class_list)) {
                 # One is the positive class
                 positive_class_cv <- class_list[cl]
+                negative_class_cv <- class_list[class_list != positive_class_cv]
                 # Confusion matrix (do not overwrite the exsisting one, it is always the same, independently from the positive class chosen)
                 if (is.null(confusion_matrix)) {
-                    confusion_matrix <- confusionMatrix(model_object, mode = "everything", dnn = c("Predicted", "Actual"))
+                    confusion_matrix <- confusionMatrix(model_object, mode = "everything", dnn = c("Predicted", "Actual"), positive = positive_class_cv)
                 }
                 # Convert it into a dataframe (rows = Predicted, columns = Actual)
                 if (is.null(confusion_matrix_df)) {
-                    confusion_matrix_df <- as.matrix(cbind(confusion_matrix$table[,1], confusion_matrix$table[,2]))
+                    for (cl in 1:ncol(confusion_matrix$table)) {
+                        if (is.null(confusion_matrix_df)) {
+                            confusion_matrix_df <- as.matrix(cbind(confusion_matrix$table[,cl]))
+                        } else {
+                            confusion_matrix_df <- as.matrix(cbind(confusion_matrix_df, confusion_matrix$table[,cl]))
+                        }
+                    }
                     colnames(confusion_matrix_df) <- colnames(confusion_matrix$table)
                     rownames(confusion_matrix_df) <- rownames(confusion_matrix$table)
                     confusion_matrix_df <- as.data.frame(confusion_matrix_df)
@@ -5324,13 +5331,27 @@ functions_mass_spectrometry <- function() {
                 # Determine the performance parameters (create a vector with all of them, named)
                 performance_parameter_vector <- vector()
                 performance_parameter_vector[["class proportion"]] <- nrow(training_set[training_set[, discriminant_attribute] == positive_class_cv, ]) / nrow(training_set)
-                performance_parameter_vector[["recall"]] <- recall(confusion_matrix$table, positive = positive_class_cv)
-                performance_parameter_vector[["precision"]] <- precision(confusion_matrix$table, positive = positive_class_cv)
-                performance_parameter_vector[["sensitivity"]] <- sensitivity(confusion_matrix$table, positive = positive_class_cv)
-                performance_parameter_vector[["specificity"]] <- specificity(confusion_matrix$table, positive = positive_class_cv)
-                performance_parameter_vector[["PPV"]] <- posPredValue(confusion_matrix$table, positive = positive_class_cv)
-                performance_parameter_vector[["NPV"]] <- negPredValue(confusion_matrix$table, positive = positive_class_cv)
+                true_positives <- confusion_matrix_df[positive_class_cv, positive_class_cv]
+                true_negatives <- confusion_matrix_df[negative_class_cv, negative_class_cv]
+                false_positives <- confusion_matrix_df[positive_class_cv, negative_class_cv]
+                false_negatives <- confusion_matrix_df[negative_class_cv, positive_class_cv]
+                performance_parameter_vector[["sensitivity"]] <- true_positives / (true_positives + false_negatives)
+                performance_parameter_vector[["specificity"]] <- true_negatives / (true_negatives + false_positives)
+                performance_parameter_vector[["TPR"]] <- performance_parameter_vector[["sensitivity"]]
+                performance_parameter_vector[["TNR"]] <- performance_parameter_vector[["specificity"]]
+                performance_parameter_vector[["FPR"]] <- false_positives / true_negatives + false_positives
+                performance_parameter_vector[["FNR"]] <- false_negatives / true_positives + false_negatives
+                performance_parameter_vector[["accuracy"]] <- (true_positives + true_negatives) / (true_positives + true_negatives + false_positives + false_negatives)
+                performance_parameter_vector[["PPV"]] <- true_positives / (true_positives + false_positives)
+                performance_parameter_vector[["NPV"]] <- true_negatives / (true_negatives + false_negatives)
+                performance_parameter_vector[["FDR"]] <- 1 - performance_parameter_vector[["PPV"]]
+                performance_parameter_vector[["FOR"]] <- 1 - performance_parameter_vector[["NPV"]]
+                performance_parameter_vector[["LR+"]] <- performance_parameter_vector[["TPR"]] / performance_parameter_vector[["FPR"]]
+                performance_parameter_vector[["LR-"]] <- performance_parameter_vector[["FNR"]] / performance_parameter_vector[["TNR"]]
+                performance_parameter_vector[["DOR"]] <- performance_parameter_vector[["LR+"]] / performance_parameter_vector[["LR-"]]
                 performance_parameter_vector[["balanced accuracy"]] <- (performance_parameter_vector[["sensitivity"]] + performance_parameter_vector[["specificity"]]) / 2
+                performance_parameter_vector[["recall"]] <- performance_parameter_vector[["sensitivity"]]
+                performance_parameter_vector[["precision"]] <- performance_parameter_vector[["PPV"]]
                 # Store the vector in the list, named according to the positive class of the CV
                 performance_parameter_list[[positive_class_cv]] <- performance_parameter_vector
             }
@@ -5349,13 +5370,20 @@ functions_mass_spectrometry <- function() {
             for (cl in 1:length(class_list)) {
                 # One is the positive class
                 positive_class_cv <- class_list[cl]
+                negative_class_cv <- class_list[class_list != positive_class_cv]
                 # Confusion matrix (do not overwrite the exsisting one, it is always the same, independently from the positive class chosen)
                 if (is.null(confusion_matrix)) {
                     confusion_matrix <- confusionMatrix(data = predicted_classes_model, reference = test_set[, discriminant_attribute], positive = positive_class_cv, dnn = c("Predicted", "Actual"), mode = "everything")
                 }
                 # Convert it into a dataframe (rows = Predicted, columns = Actual)
                 if (is.null(confusion_matrix_df)) {
-                    confusion_matrix_df <- as.matrix(cbind(confusion_matrix$table[,1], confusion_matrix$table[,2]))
+                    for (cl in 1:ncol(confusion_matrix$table)) {
+                        if (is.null(confusion_matrix_df)) {
+                            confusion_matrix_df <- as.matrix(cbind(confusion_matrix$table[,cl]))
+                        } else {
+                            confusion_matrix_df <- as.matrix(cbind(confusion_matrix_df, confusion_matrix$table[,cl]))
+                        }
+                    }
                     colnames(confusion_matrix_df) <- colnames(confusion_matrix$table)
                     rownames(confusion_matrix_df) <- rownames(confusion_matrix$table)
                     confusion_matrix_df <- as.data.frame(confusion_matrix_df)
@@ -5363,13 +5391,27 @@ functions_mass_spectrometry <- function() {
                 # Determine the performance parameters (create a vector with all of them, named)
                 performance_parameter_vector <- vector()
                 performance_parameter_vector[["class proportion"]] <- nrow(training_set[training_set[, discriminant_attribute] == positive_class_cv, ]) / nrow(training_set)
-                performance_parameter_vector[["recall"]] <- recall(confusion_matrix$table, positive = positive_class_cv)
-                performance_parameter_vector[["precision"]] <- precision(confusion_matrix$table, positive = positive_class_cv)
-                performance_parameter_vector[["sensitivity"]] <- sensitivity(confusion_matrix$table, positive = positive_class_cv)
-                performance_parameter_vector[["specificity"]] <- specificity(confusion_matrix$table, positive = positive_class_cv)
-                performance_parameter_vector[["PPV"]] <- posPredValue(confusion_matrix$table, positive = positive_class_cv)
-                performance_parameter_vector[["NPV"]] <- negPredValue(confusion_matrix$table, positive = positive_class_cv)
+                true_positives <- confusion_matrix_df[positive_class_cv, positive_class_cv]
+                true_negatives <- confusion_matrix_df[negative_class_cv, negative_class_cv]
+                false_positives <- confusion_matrix_df[positive_class_cv, negative_class_cv]
+                false_negatives <- confusion_matrix_df[negative_class_cv, positive_class_cv]
+                performance_parameter_vector[["sensitivity"]] <- true_positives / (true_positives + false_negatives)
+                performance_parameter_vector[["specificity"]] <- true_negatives / (true_negatives + false_positives)
+                performance_parameter_vector[["TPR"]] <- performance_parameter_vector[["sensitivity"]]
+                performance_parameter_vector[["TNR"]] <- performance_parameter_vector[["specificity"]]
+                performance_parameter_vector[["FPR"]] <- false_positives / true_negatives + false_positives
+                performance_parameter_vector[["FNR"]] <- false_negatives / true_positives + false_negatives
+                performance_parameter_vector[["accuracy"]] <- (true_positives + true_negatives) / (true_positives + true_negatives + false_positives + false_negatives)
+                performance_parameter_vector[["PPV"]] <- true_positives / (true_positives + false_positives)
+                performance_parameter_vector[["NPV"]] <- true_negatives / (true_negatives + false_negatives)
+                performance_parameter_vector[["FDR"]] <- 1 - performance_parameter_vector[["PPV"]]
+                performance_parameter_vector[["FOR"]] <- 1 - performance_parameter_vector[["NPV"]]
+                performance_parameter_vector[["LR+"]] <- performance_parameter_vector[["TPR"]] / performance_parameter_vector[["FPR"]]
+                performance_parameter_vector[["LR-"]] <- performance_parameter_vector[["FNR"]] / performance_parameter_vector[["TNR"]]
+                performance_parameter_vector[["DOR"]] <- performance_parameter_vector[["LR+"]] / performance_parameter_vector[["LR-"]]
                 performance_parameter_vector[["balanced accuracy"]] <- (performance_parameter_vector[["sensitivity"]] + performance_parameter_vector[["specificity"]]) / 2
+                performance_parameter_vector[["recall"]] <- performance_parameter_vector[["sensitivity"]]
+                performance_parameter_vector[["precision"]] <- performance_parameter_vector[["PPV"]]
                 # Store the vector in the list, named according to the positive class of the CV
                 performance_parameter_list[[positive_class_cv]] <- performance_parameter_vector
             }
@@ -8445,6 +8487,7 @@ functions_mass_spectrometry <- function() {
     
     ################################################################################
 }
+
 
 
 
