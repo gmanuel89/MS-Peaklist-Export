@@ -5,7 +5,7 @@ rm(list = ls())
 
 functions_mass_spectrometry <- function() {
     
-    ################## FUNCTIONS - MASS SPECTROMETRY 2017.06.16 ################
+    ################## FUNCTIONS - MASS SPECTROMETRY 2017.06.19 ################
     # Each function is assigned with <<- instead of <-, so when called by the huge functions_mass_spectrometry() function they go in the global environment, like as if the script was directly sourced from the file.
     
     
@@ -5819,6 +5819,8 @@ functions_mass_spectrometry <- function() {
         # Restore the lists
         peaks_database <- peaks_all[1:database_size]
         peaks_test <- peaks_all[(database_size + 1):length(peaks_all)]
+        names(peaks_database) <- database_names
+        names(peaks_test) <- test_names
         #### Replace the sample name, both in the library and in the test set
         peaks_test <- replace_sample_name(peaks_test, spectra_format = spectra_format)
         peaks_database <- replace_class_name(peaks_database,  class_list = class_list_library, spectra_format = spectra_format)
@@ -5858,16 +5860,15 @@ functions_mass_spectrometry <- function() {
         #plot(hierarchical_clustering, main = "Hierarchical clustering analysis - Spectral Typer, xlab = "Samples", ylab = "Tree height")
         hca_dendrogram <- ggdendrogram(hierarchical_clustering, segments = TRUE, labels = TRUE, leaf_labels = TRUE, rotate = TRUE, theme_dendro = TRUE)#, main = "Hierarchical clustering analysis - Spectral Typer", xlab = "Samples", ylab = "Tree height")
         #hca_dendrogram <- recordPlot()
-        #
         distance_matrix <- as.matrix(distance_matrix)
         # The distance matrix displays the distance between the spectra
         colnames(distance_matrix) <- peaklist_matrix[,"Sample"]
         rownames(distance_matrix) <- peaklist_matrix[,"Sample"]
         # Remove the first rows (the spectra from the database) and Keep only the first columns (the spectra from the database)
         distance_matrix <- distance_matrix[(database_size + 1):nrow(distance_matrix), 1:database_size]
-        ### Normalise the euclidean distances
+        ### Normalize the euclidean distances (per sample)
         if (normalize_distances == TRUE) {
-            # TIC (SUM)
+            # Sample TIC (SUM of the distances of the sample from all the database entries)
             if (normalization_method == "sum") {
                 # Compute the sum of the rows
                 row_sums <- apply(distance_matrix, MARGIN = 1, FUN = sum)
@@ -5891,21 +5892,42 @@ functions_mass_spectrometry <- function() {
                 }
                 result_matrix <- apply(distance_matrix, MARGIN = c(1,2), FUN = function(x) scoring_function(x))
             } else if (normalization_method == "max") {
-                # SUM
+                # MAX (MAX of the distances of the sample from all the database entries)
                 # Divide each element of the matrix by the maximum of the row
                 for (r in 1:nrow(distance_matrix)) {
-                    distance_matrix [r,] <- distance_matrix[r,] / max(distance_matrix[r,])
+                    distance_matrix[r,] <- distance_matrix[r,] / max(distance_matrix[r,], na.rm = TRUE)
                 }
                 # Multiply everything by 100, to have more readable results (percentage of the max)
                 distance_matrix <- distance_matrix * 100
                 # The classification is made by comparing the single sample spectrum with the spectrum of the database class (the distance is displayed in the distance matrix): the closer the better
                 # Scroll the rows, assign the class based upon the distance, create the output matrix for results (create a function to apply to each matrix row)
-                scoring_function <<- function (x) {
+                scoring_function <- function(x) {
                     if (x < 50) {
                         x <- paste0("YES\n(", round(as.numeric(x),3), ")")
                     } else if (x >= 50 && x < 75) {
                         x <- paste0("NI\n(", round(as.numeric(x),3), ")")
                     } else if (x >= 75) {
+                        x <- paste0("NO\n(", round(as.numeric(x),3), ")")
+                    }
+                    return(x)
+                }
+                result_matrix <- apply(distance_matrix, MARGIN = c(1,2), FUN = function(x) scoring_function(x))
+            } else if (normalization_method == "rms") {
+                # RMS (RMS of the distances of the sample from all the database entries)
+                # Divide each element of the matrix by the maximum of the row
+                for (r in 1:nrow(distance_matrix)) {
+                    distance_matrix[r,] <- distance_matrix[r,] / sqrt(sum(distance_matrix[r,], na.rm = TRUE)^2)
+                }
+                # Multiply everything by 10, to have more readable results
+                distance_matrix <- distance_matrix * 10
+                # The classification is made by comparing the single sample spectrum with the spectrum of the database class (the distance is displayed in the distance matrix): the closer the better
+                # Scroll the rows, assign the class based upon the distance, create the output matrix for results (create a function to apply to each matrix row)
+                scoring_function <- function(x) {
+                    if (x < 1) {
+                        x <- paste0("YES\n(", round(as.numeric(x),3), ")")
+                    } else if (x >= 1 && x < 1.2) {
+                        x <- paste0("NI\n(", round(as.numeric(x),3), ")")
+                    } else if (x >= 1.2) {
                         x <- paste0("NO\n(", round(as.numeric(x),3), ")")
                     }
                     return(x)
@@ -6213,7 +6235,7 @@ functions_mass_spectrometry <- function() {
                 list_names <- NULL
             }
             output_list <- list()
-            output_list <- foreach(i = 1:length(global_list), .packages = c("weights", "MALDIquant"), .export = c("peak_picking", "most intense signals", "align_and_filter_peaks")) %dopar% {
+            output_list <- foreach(i = 1:length(global_list), .packages = c("weights", "MALDIquant"), .export = c("peak_picking", "most_intense_signals", "align_and_filter_peaks", "align_spectra", "preprocess_spectra")) %dopar% {
                 output_list[[i]] <- comparison_sample_db_subfunction_correlation(global_list[[i]])
             }
             names(output_list) <- list_names
@@ -6691,7 +6713,7 @@ functions_mass_spectrometry <- function() {
                 list_names <- NULL
             }
             output_list <- list()
-            output_list <- foreach(i = 1:length(global_list), .packages = "MALDIquant", .export = c("peak_picking", "most intense signals", "align_and_filter_peaks")) %dopar% {
+            output_list <- foreach(i = 1:length(global_list), .packages = "MALDIquant", .export = c("peak_picking", "most_intense_signals", "align_and_filter_peaks", "align_spectra", "preprocess_spectra")) %dopar% {
                 output_list[[i]] <- comparison_sample_db_subfunction_intensity(global_list[[i]])
             }
             names(output_list) <- list_names
@@ -7017,7 +7039,7 @@ functions_mass_spectrometry <- function() {
                 list_names <- NULL
             }
             output_list <- list()
-            output_list <- foreach(i = 1:length(global_list), .packages = "MALDIquant", .export = c("peak_picking", "most intense signals", "align_and_filter_peaks")) %dopar% {
+            output_list <- foreach(i = 1:length(global_list), .packages = "MALDIquant", .export = c("peak_picking", "most_intense_signals", "align_and_filter_peaks", "align_spectra", "preprocess_spectra")) %dopar% {
                 output_list[[i]] <- comparison_sample_db_subfunction_similarity_index(global_list[[i]])
             }
             names(output_list) <- list_names
@@ -8496,6 +8518,7 @@ functions_mass_spectrometry <- function() {
 
 
 
+
 ####################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################
 
 
@@ -8537,7 +8560,7 @@ ms_peaklist_export <- function() {
     
     
     ### Program version (Specified by the program writer!!!!)
-    R_script_version <- "2017.06.16.0"
+    R_script_version <- "2017.06.19.0"
     ### Force update (in case something goes wrong after an update, when checking for updates and reading the variable force_update, the script can automatically download the latest working version, even if the rest of the script is corrupted, because it is the first thing that reads)
     force_update <- FALSE
     ### GitHub URL where the R file is
@@ -9127,7 +9150,17 @@ ms_peaklist_export <- function() {
             file_type_export <- "csv"
         }
         if (file_type_export == "xls" || file_type_export == "xlsx") {
-            install_and_load_required_packages("XLConnect")
+            # Try to install the XLConnect (it will fail if Java is not installed)
+            Java_is_installed <- FALSE
+            try({
+                install_and_load_required_packages("XLConnect")
+                Java_is_installed <- TRUE
+            }, silent = TRUE)
+            # If it didn't install successfully, set to CSV
+            if (Java_is_installed == FALSE) {
+                tkmessageBox(title = "Java not installed", message = "Java is not installed, therefore the package XLConnect cannot be installed and loaded.\nThe output format is switched back to CSV", icon = "warning")
+                file_type_export <- "csv"
+            }
         }
         # Escape the function
         file_type_export <<- file_type_export
@@ -9142,8 +9175,6 @@ ms_peaklist_export <- function() {
     set_file_name <- function() {
         # Retrieve the peaklist file name from the entry...
         filename <- tclvalue(file_name)
-        # Create a copy for the subfolder name (for the spectral files)
-        filename_subfolder <- filename
         # Add the date and time to the filename
         current_date <- unlist(strsplit(as.character(Sys.time()), " "))[1]
         current_date_split <- unlist(strsplit(current_date, "-"))
@@ -9159,6 +9190,8 @@ ms_peaklist_export <- function() {
         }
         final_date_time <- paste(final_date, final_time, sep = "_")
         filename <- paste(filename, " (", final_date_time, ")", sep = "")
+        # Create a copy for the subfolder name (for the spectral files)
+        filename_subfolder <- filename
         # Add the extension if it is not present in the filename
         if (file_type_export == "csv") {
             if (length(grep(".csv", filename, fixed = TRUE)) == 1) {
@@ -9579,12 +9612,17 @@ ms_peaklist_export <- function() {
                 # Exit the function and put the variable into the R workspace
                 spectra <<- spectra
                 class_list <<- class_list
+                import_successful <<- TRUE
                 ### Messagebox
                 tkmessageBox(title = "Import successful", message = "The spectra have been successfully imported and preprocessed", icon = "info")
             }, silent = TRUE)
+            if (is.null(spectra) || import_successful == FALSE) {
+                close(import_progress_bar)
+            }
         } else {
             ### Messagebox
             tkmessageBox(title = "Import not possible", message = "No spectra files or folder have been selected!", icon = "warning")
+            import_successful <<- FALSE
         }
         # Raise the focus on the main window
         tkraise(window)
@@ -9700,6 +9738,8 @@ ms_peaklist_export <- function() {
     ##### Run the Peaklist Export function
     run_peaklist_export_function <- function() {
         setwd(output_folder)
+        # Get the filename from the entry
+        set_file_name()
         ######## Run only if all the elements needed are there
         if (!is.null(spectra) && !is.null(peaks)) {
             # Progress bar
@@ -9714,15 +9754,12 @@ ms_peaklist_export <- function() {
             setTkProgressBar(program_progress_bar, value = 0.90, title = NULL, label = "90 %")
             # Save the files (CSV)
             if (file_type_export == "csv") {
-                # Get the filename from the entry
-                set_file_name()
+                
                 write.csv(peaklist, file = filename, row.names = FALSE)
                 dump_parameters()
                 write.csv(parameters_matrix, file = paste0(filename_subfolder, " - Parameters.", file_type_export), row.names = TRUE, col.names = TRUE)
             } else if (file_type_export == "xlsx" || file_type_export == "xls") {
                 # Save the files (Excel)
-                # Get the filename from the entry
-                set_file_name()
                 peaklist <- as.data.frame(peaklist)
                 # Generate unique row names
                 unique_row_names <- make.names(rownames(peaklist), unique = TRUE)
@@ -10170,3 +10207,4 @@ functions_mass_spectrometry()
 
 ### Run the function
 ms_peaklist_export()
+
