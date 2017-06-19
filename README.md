@@ -12,6 +12,14 @@ In order for this WIKI to be applicable, the version of the program must be equa
 
 ***
 
+## Platform(s) tested
+Ubuntu Linux 16.04 x64 - R 3.4.0
+Fedora Linux 25 x64 - R 3.4.0
+Microsoft Windows 7 x64 - R 3.4.0
+Microsoft Windows 10 x64 - R 3.4.0
+
+***
+
 ## Scope of the software
 The software imports mass spectra (stored in different file formats), performs spectral preprocessing onto the imported spectra (with different parameters), computes the peak picking and peak alignment onto the preprocessed spectra and generates a peaklist matrix.
 
