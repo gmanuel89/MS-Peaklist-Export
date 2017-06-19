@@ -9787,7 +9787,6 @@ ms_peaklist_export <- function() {
         ### Run only if there are spectra
         if (!is.null(spectra) && !is.null(peaks)) {
             # Get the filename from the entry (filename_subfolder)
-            set_file_name()
             # Go to the working directory and create a folder named 'Spectra files'
             spectra_files_subfolder <- file.path(output_folder, paste(filename_subfolder, "- Spectral files"))
             dir.create(spectra_files_subfolder)
@@ -10192,6 +10191,7 @@ ms_peaklist_export <- function() {
     tkgrid(download_updates_button, row = 1, column = 5, padx = c(10, 10), pady = c(10, 10))
     tkgrid(check_for_updates_value_label, row = 1, column = 6, padx = c(10, 10), pady = c(10, 10))
     
+    set_file_name()
     
     
     
