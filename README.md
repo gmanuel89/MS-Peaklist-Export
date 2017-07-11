@@ -3,7 +3,7 @@
 ***
 
 ## Program version
-In order for this WIKI to be applicable, the version of the program must be equal to or higher than **2017.06.19.0**.
+In order for this WIKI to be applicable, the version of the program must be equal to or higher than **2017.07.11.0**.
 
 ***
 
@@ -13,13 +13,13 @@ In order for this WIKI to be applicable, the version of the program must be equa
 ***
 
 ## Platform(s) tested
-Ubuntu Linux 16.04 x64 - R 3.4.0
+Ubuntu Linux 16.04 x64 - R 3.4.1
 
-Fedora Linux 25 x64 - R 3.4.0
+Fedora Linux 26 x64 - R 3.4.1
 
-Microsoft Windows 7 x64 - R 3.4.0
+Microsoft Windows 7 x64 - R 3.4.1
 
-Microsoft Windows 10 x64 - R 3.4.0
+Microsoft Windows 10 x64 - R 3.4.1
 
 ***
 
@@ -63,9 +63,7 @@ The spectra files are placed in a folder with the same name as the peaklist file
 
 * **Signal-to-noise ratio**: defines the signal-to-noise ratio to be used as a threshold for peak picking, after noise estimation.
 
-* **Peak picking mode**: defines if "all" the peaks should be kept or only the "most intense" for each spectrum.
-
-* **Most intense signals to take**: defines the number of most intense signals to preserve (if "most intense" is selected as "Peak picking mode").
+* **Most intense signals to take**: defines the number of most intense signals to preserve (a value of 0 retains all the peaks).
 
 * **Peak deisotoping enveloping**: defines if "Peak deisotoping" (preserve only the monoisotipic peak of the isotope cluster) or "Peak enveloping" (preserve only the most intense peak of the isotope cluster) should be performed after peak picking.
 
@@ -133,3 +131,4 @@ Example of folder hierarchy:
 /Input folder/Class2/Spectra (imzML, Xmass, TXT, CSV, MSD) files
 
 /Input folder/Class3/Spectra (imzML, Xmass, TXT, CSV, MSD) files
+
