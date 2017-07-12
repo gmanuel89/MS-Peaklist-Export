@@ -5,7 +5,7 @@ rm(list = ls())
 
 functions_mass_spectrometry <- function() {
     
-    ################## FUNCTIONS - MASS SPECTROMETRY 2017.07.11 ################
+    ################## FUNCTIONS - MASS SPECTROMETRY 2017.07.12 ################
     # Each function is assigned with <<- instead of <-, so when called by the huge functions_mass_spectrometry() function they go in the global environment, like as if the script was directly sourced from the file.
     
     
@@ -25,11 +25,11 @@ functions_mass_spectrometry <- function() {
                     library(RCurl)
                 } else {
                     # Check for the personal local library presence before installing (~/R/packages/), then instlall in the local library
-                    if (!dir.exists("~/R/libraries/")) {
-                        dir.create("~/R/libraries/")
+                    if (!dir.exists(Sys.getenv("R_LIBS_USER"))) {
+                        dir.create(Sys.getenv("R_LIBS_USER"))
                     }
-                    .libPaths("~/R/libraries/")
-                    install.packages("RCurl", repos = "http://cran.mirror.garr.it/mirrors/CRAN/", quiet = TRUE, verbose = FALSE, lib = .libPaths()[1])
+                    .libPaths(Sys.getenv("R_LIBS_USER"))
+                    install.packages("RCurl", repos = "http://cran.mirror.garr.it/mirrors/CRAN/", quiet = TRUE, verbose = FALSE, lib = Sys.getenv("R_LIBS_USER"))
                     library(RCurl)
                 }
             }, silent = TRUE)
@@ -75,18 +75,18 @@ functions_mass_spectrometry <- function() {
                 ##### If a repository is specified
                 if (repository != "" || !is.null(repository)) {
                     # Check for the personal local library presence before installing (~/R/packages/), then install in the local library
-                    if (!dir.exists("~/R/libraries/")) {
-                        dir.create("~/R/libraries/")
+                    if (!dir.exists(Sys.getenv("R_LIBS_USER"))) {
+                        dir.create(Sys.getenv("R_LIBS_USER"))
                     }
-                    .libPaths("~/R/libraries/")
-                    update.packages(repos = repository, ask = FALSE, checkBuilt = TRUE, quiet = TRUE, verbose = FALSE, lib.loc = .libPaths()[1])
+                    .libPaths(Sys.getenv("R_LIBS_USER"))
+                    update.packages(repos = repository, ask = FALSE, checkBuilt = TRUE, quiet = TRUE, verbose = FALSE, lib.loc = Sys.getenv("R_LIBS_USER"))
                 } else {
                     # Check for the personal local library presence before installing (~/R/packages/), then instlall in the local library
-                    if (!dir.exists("~/R/libraries/")) {
-                        dir.create("~/R/libraries/")
+                    if (!dir.exists(Sys.getenv("R_LIBS_USER"))) {
+                        dir.create(Sys.getenv("R_LIBS_USER"))
                     }
-                    .libPaths("~/R/libraries/")
-                    update.packages(ask = FALSE, checkBuilt = TRUE, quiet = TRUE, verbose = FALSE, lib.loc = .libPaths()[1])
+                    .libPaths(Sys.getenv("R_LIBS_USER"))
+                    update.packages(ask = FALSE, checkBuilt = TRUE, quiet = TRUE, verbose = FALSE, lib.loc = Sys.getenv("R_LIBS_USER"))
                 }
                 if (print_messages == TRUE) {
                     cat("\nPackages updated\n")
@@ -108,19 +108,19 @@ functions_mass_spectrometry <- function() {
                 ### If a repository is specified
                 if (repository != "" || !is.null(repository)) {
                     # Check for the personal local library presence before installing (~/R/packages/), then instlall in the local library
-                    if (!dir.exists("~/R/libraries/")) {
-                        dir.create("~/R/libraries/")
+                    if (!dir.exists(Sys.getenv("R_LIBS_USER"))) {
+                        dir.create(Sys.getenv("R_LIBS_USER"))
                     }
-                    .libPaths("~/R/libraries/")
-                    install.packages(missing_packages, repos = repository, quiet = TRUE, verbose = FALSE, lib = .libPaths()[1])
+                    .libPaths(Sys.getenv("R_LIBS_USER"))
+                    install.packages(missing_packages, repos = repository, quiet = TRUE, verbose = FALSE, lib = Sys.getenv("R_LIBS_USER"))
                 } else {
                     ### If NO repository is specified
                     # Check for the personal local library presence before installing (~/R/packages/), then instlall in the local library
-                    if (!dir.exists("~/R/libraries/")) {
-                        dir.create("~/R/libraries/")
+                    if (!dir.exists(Sys.getenv("R_LIBS_USER"))) {
+                        dir.create(Sys.getenv("R_LIBS_USER"))
                     }
-                    .libPaths("~/R/libraries/")
-                    install.packages(missing_packages, quiet = TRUE, verbose = FALSE, lib = .libPaths()[1])
+                    .libPaths(Sys.getenv("R_LIBS_USER"))
+                    install.packages(missing_packages, quiet = TRUE, verbose = FALSE, lib = Sys.getenv("R_LIBS_USER"))
                 }
                 if (print_messages == TRUE) {
                     cat("\nAll the required packages have been installed\n")
@@ -8827,6 +8827,7 @@ functions_mass_spectrometry <- function() {
 
 
 
+
 ####################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################
 
 
@@ -8868,7 +8869,7 @@ ms_peaklist_export <- function() {
     
     
     ### Program version (Specified by the program writer!!!!)
-    R_script_version <- "2017.07.11.1"
+    R_script_version <- "2017.07.12.0"
     ### Force update (in case something goes wrong after an update, when checking for updates and reading the variable force_update, the script can automatically download the latest working version, even if the rest of the script is corrupted, because it is the first thing that reads)
     force_update <- FALSE
     ### GitHub URL where the R file is
