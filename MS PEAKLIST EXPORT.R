@@ -5,7 +5,7 @@ rm(list = ls())
 
 functions_mass_spectrometry <- function() {
     
-    ################## FUNCTIONS - MASS SPECTROMETRY 2017.07.12 ################
+    ################## FUNCTIONS - MASS SPECTROMETRY 2017.07.26 ################
     # Each function is assigned with <<- instead of <-, so when called by the huge functions_mass_spectrometry() function they go in the global environment, like as if the script was directly sourced from the file.
     
     
@@ -296,26 +296,20 @@ functions_mass_spectrometry <- function() {
             colnames(classification_ensemble_matrix) <- "Ensemble classification"
         } else if (weighted_decision_method == "bayesian probabilities" && (!is.null(performance_parameter_list) && is.list(performance_parameter_list) && length(performance_parameter_list) > 0)) {
             ##### Majority vote: bayesian probabilities
+            # Determine the type of validation (cross or external) to use
+            if (type_of_validation_for_performance_estimation == "cv" || type_of_validation_for_performance_estimation == "cross validation" || type_of_validation_for_performance_estimation == "CV") {
+                model_performance_parameter_list <- performance_parameter_list$cv
+            } else if (type_of_validation_for_performance_estimation == "ev" || type_of_validation_for_performance_estimation == "external validation" || type_of_validation_for_performance_estimation == "EV") {
+                model_performance_parameter_list <- performance_parameter_list$external
+            }
             ## Initialize the final classification ensemble matrix
             classification_ensemble_matrix <- NULL
-            # For each row of the classification matrix...
-            for (s in 1:nrow(classification_matrix)) {
-                # Retrieve the spectrum ID
-                if (!is.null(rownames(classification_matrix[s,]))) {
-                    spectrum_ID <- rownames(classification_matrix[s,])
-                } else {
-                    spectrum_ID <- s
-                }
+            # Define the function for apply, to be run for each row of the classification matrix... (x = classification_matrix row)
+            bayesian_ensemble_predictions_subfunction <- function(x) {
                 # Retrieve the predicted classes by the models for that spectrum (vector of 0 and 1, e.g. 0, 1, 0)
-                predicted_classes_models <- as.matrix(classification_matrix[s,])
+                predicted_classes_models <- as.matrix(x)
                 # Initialize the class probability list (each element is referred to a class and it is a vector of probabilities for each model for that spectrum): each element of the list will contain the probabilities of the spectrum for that class for all the models. E.g. element named 0 will contain the P(0).
                 class_probs_list <- list()
-                # Determine the type of validation (cross or external) to use
-                if (type_of_validation_for_performance_estimation == "cv" || type_of_validation_for_performance_estimation == "cross validation" || type_of_validation_for_performance_estimation == "CV") {
-                    model_performance_parameter_list <- performance_parameter_list$cv
-                } else if (type_of_validation_for_performance_estimation == "ev" || type_of_validation_for_performance_estimation == "external validation" || type_of_validation_for_performance_estimation == "EV") {
-                    model_performance_parameter_list <- performance_parameter_list$external
-                }
                 # P(d|h) = probability that the class of the real data (d) is a value given the hypothesis (h). E.g. P(d=1|h=1) is the probability that the real data is 1 given that it is really 1, so it is the probability that the class of the patient is really 1 (h=1) when the model says that it is 1 (d=1).
                 # For class 0 --> P(0) = P(d=0|h=0) or P(d=1|h=0) according to if the model says that the patient is 1 (d=1) or 0 (d=0). The hypothesis is always h=0 because we are calculating the probabilities of the data to be of class 0.
                 # For class 1 --> P(1) = P(d=1|h=1) or P(d=0|h=1) according to if the model says that the patient is 1 (d=1) or 0 (d=0). The hypothesis is always h=1 because we are calculating the probabilities of the data to be of class 1.
@@ -348,14 +342,11 @@ functions_mass_spectrometry <- function() {
                 # Extract the most probable class
                 final_class_vector <- unlist(final_class_probs)
                 most_probable_class <- as.matrix(names(which(final_class_vector == max(final_class_vector, na.rm = TRUE))))
-                rownames(most_probable_class) <- spectrum_ID
-                # Store it in the final matrix
-                if (is.null(classification_ensemble_matrix)) {
-                    classification_ensemble_matrix <- most_probable_class
-                } else {
-                    classification_ensemble_matrix <- rbind(classification_ensemble_matrix, most_probable_class)
-                }
+                # Return
+                return(most_probable_class)
             }
+            # Apply the function
+            classification_ensemble_matrix <- as.matrix(cbind(apply(X = as.matrix(classification_matrix), MARGIN = 1, FUN = bayesian_ensemble_predictions_subfunction)))
             colnames(classification_ensemble_matrix) <- "Ensemble classification"
         } else {
             classification_ensemble_matrix <- NULL
@@ -377,7 +368,7 @@ functions_mass_spectrometry <- function() {
     # This function adds two column to the peaklist matrix (rows: spectra/patients, columns: aligned peaks): Sample and Class, according to the file name.
     ### The name of the rows will be either the sample name or the class name (depending on the function parameter).
     # If the rows are named according to the sample name, an additional column for the class is added
-    matrix_add_class_and_sample <<- function(signal_matrix, peaks = list(), class_list = list(), spectra_format = "imzML", sample_output = TRUE, class_output = TRUE, row_labels = "Sample") {
+    matrix_add_class_and_sample <<- function(signal_matrix, peaks = list(), class_list = character(), spectra_format = "imzML", sample_output = TRUE, class_output = TRUE, row_labels = "Sample") {
         # Convert the input matrix/dataframe into a matrix
         if (!is.matrix(signal_matrix)) {
             signal_matrix <- as.matrix(signal_matrix)
@@ -2198,7 +2189,13 @@ functions_mass_spectrometry <- function() {
         ##### Define the smoothing half wondow size
         smoothing_half_window_size <- NULL
         if (tof_mode == "linear") {
-            if (!is.null(smoothing_strength) && smoothing_strength == "medium") {
+          if (!is.null(smoothing_strength) && smoothing_strength == "small") {
+            if (!is.null(smoothing_algorithm) && smoothing_algorithm == "SavitzkyGolay") {
+              smoothing_half_window_size <- 5
+            } else if (!is.null(smoothing_algorithm) && smoothing_algorithm == "MovingAverage") {
+              smoothing_half_window_size <- 1
+            }
+          } else if (!is.null(smoothing_strength) && smoothing_strength == "medium") {
                 if (!is.null(smoothing_algorithm) && smoothing_algorithm == "SavitzkyGolay") {
                     smoothing_half_window_size <- 10
                 } else if (!is.null(smoothing_algorithm) && smoothing_algorithm == "MovingAverage") {
@@ -2218,11 +2215,17 @@ functions_mass_spectrometry <- function() {
                 }
             }
         } else if (tof_mode == "reflectron") {
-            if (!is.null(smoothing_strength) && smoothing_strength == "medium") {
+          if (!is.null(smoothing_strength) && smoothing_strength == "small") {
+            if (!is.null(smoothing_algorithm) && smoothing_algorithm == "SavitzkyGolay") {
+              smoothing_half_window_size <- 1.5
+            } else if (!is.null(smoothing_algorithm) && smoothing_algorithm == "MovingAverage") {
+              smoothing_half_window_size <- 1
+            }
+          } else if (!is.null(smoothing_strength) && smoothing_strength == "medium") {
                 if (!is.null(smoothing_algorithm) && smoothing_algorithm == "SavitzkyGolay") {
                     smoothing_half_window_size <- 3
                 } else if (!is.null(smoothing_algorithm) && smoothing_algorithm == "MovingAverage") {
-                    smoothing_half_window_size <- 1
+                    smoothing_half_window_size <- 1.5
                 }
             } else if (!is.null(smoothing_strength) && smoothing_strength == "strong") {
                 if (!is.null(smoothing_algorithm) && smoothing_algorithm == "SavitzkyGolay") {
@@ -2478,6 +2481,8 @@ functions_mass_spectrometry <- function() {
                 if (NA_values == TRUE) {
                     return(spectra)
                 } else {
+                    # Crop the align spectra to a common range before returning
+                    aligned_spectra <- MALDIquant::trim(aligned_spectra)
                     names(aligned_spectra) <- names(spectra)
                     return(aligned_spectra)
                 }
@@ -3183,15 +3188,22 @@ functions_mass_spectrometry <- function() {
                 }
             }
             names(peaks_aligned) <- peaks_names
-            ##### Align to a reference peaklist: AVERAGE SPECTRUM (if a spectra list is provided)
-            if (is.character(reference_peaklist) && reference_peaklist == "average" && !is.null(spectra)) {
+            ##### Align to a reference peaklist: AVERAGE SPECTRUM or SKYLINE SPECTRUM (if a spectra list is provided)
+            if (is.character(reference_peaklist) && reference_peaklist == "average spectrum" && !is.null(spectra)) {
                 # Average the spectra
                 average_spectrum <- averageMassSpectra(spectra, method = "mean")
                 # Peak picking
                 average_spectrum_peaks <- peak_picking(average_spectrum, peak_picking_algorithm = peak_picking_algorithm, SNR = 3, allow_parallelization = allow_parallelization)
                 # The reference peaklist is the paklist of the average spectrum
                 reference_peaklist <- createMassPeaks(mass = average_spectrum_peaks@mass, intensity = average_spectrum_peaks@intensity, snr = rep.int(5, length(average_spectrum_peaks@mass)), metaData = list(name = "Reference peaklist AVG"))
-            } else if (is.character(reference_peaklist) && reference_peaklist == "average" && is.null(spectra)) {
+            } else if (is.character(reference_peaklist) && reference_peaklist == "skyline spectrum" && !is.null(spectra)) {
+                # Average the spectra
+                skyline_spectrum <- averageMassSpectra(spectra, method = "sum")
+                # Peak picking
+                skyline_spectrum_peaks <- peak_picking(skyline_spectrum, peak_picking_algorithm = peak_picking_algorithm, SNR = 3, allow_parallelization = allow_parallelization)
+                # The reference peaklist is the paklist of the average spectrum
+                reference_peaklist <- createMassPeaks(mass = skyline_spectrum_peaks@mass, intensity = skyline_spectrum_peaks@intensity, snr = rep.int(5, length(skyline_spectrum_peaks@mass)), metaData = list(name = "Reference peaklist Skyline"))
+            } else if (is.character(reference_peaklist) && (reference_peaklist == "average spectrum" || reference_peaklist == "skyline spectrum") && is.null(spectra)) {
                 reference_peaklist <- NULL
             } else if (!is.null(reference_peaklist) && is.vector(reference_peaklist)) {
                 reference_peaklist <- createMassPeaks(mass = as.numeric(reference_peaklist), intensity = rep.int(1, length(reference_peaklist)), snr = rep.int(5, length(reference_peaklist)), metaData = list(name = "Reference peaklist"))
@@ -4160,7 +4172,7 @@ functions_mass_spectrometry <- function() {
                 ### Pixel by pixel
                 if ("pixel" %in% classification_mode) {
                     # Perform the classification
-                    model_classification <- single_model_classification_of_spectra(spectra = sample_spectra, model_x = model_list[[md]], model_name = list_of_models[md], preprocessing_parameters = NULL, peak_picking_algorithm = peak_picking_algorithm, deisotope_peaklist = deisotope_peaklist, peak_picking_SNR = 3, peak_filtering_frequency_threshold_percent = 0, low_intensity_peak_removal_threshold_percent = 0, low_intensity_peak_removal_threshold_method = "element-wise", tof_mode = tof_mode, allow_parallelization = allow_parallelization, pixel_grouping = pixel_grouping, number_of_hca_nodes = number_of_hca_nodes, moving_window_size = moving_window_size, seed = seed, correlation_method_for_adjacency_matrix = correlation_method_for_adjacency_matrix, correlation_threshold_for_adjacency_matrix = correlation_threshold_for_adjacency_matrix, pvalue_threshold_for_adjacency_matrix = pvalue_threshold_for_adjacency_matrix, max_GA_generations = max_GA_generations, iterations_with_no_change = iterations_with_no_change_GA, number_of_spectra_partitions = number_of_spectra_partitions_graph, partitioning_method = partitioning_method_graph, plot_figures = plot_figures, plot_graphs = plot_graphs, plot_legends = plot_legends, classification_mode_graph = classification_mode_graph, features_to_use_for_graph = features_to_use_for_graph, tolerance_ppm = tolerance_ppm)
+                    model_classification <- single_model_classification_of_spectra(spectra = sample_spectra, model_x = model_list[[md]], model_name = list_of_models[md], preprocessing_parameters = NULL, peak_picking_algorithm = peak_picking_algorithm, deisotope_peaklist = FALSE, peak_picking_SNR = 3, peak_filtering_frequency_threshold_percent = 0, low_intensity_peak_removal_threshold_percent = 0, low_intensity_peak_removal_threshold_method = "element-wise", tof_mode = tof_mode, allow_parallelization = allow_parallelization, pixel_grouping = pixel_grouping, number_of_hca_nodes = number_of_hca_nodes, moving_window_size = moving_window_size, seed = seed, correlation_method_for_adjacency_matrix = correlation_method_for_adjacency_matrix, correlation_threshold_for_adjacency_matrix = correlation_threshold_for_adjacency_matrix, pvalue_threshold_for_adjacency_matrix = pvalue_threshold_for_adjacency_matrix, max_GA_generations = max_GA_generations, iterations_with_no_change = iterations_with_no_change_GA, number_of_spectra_partitions = number_of_spectra_partitions_graph, partitioning_method = partitioning_method_graph, plot_figures = plot_figures, plot_graphs = plot_graphs, plot_legends = plot_legends, classification_mode_graph = classification_mode_graph, features_to_use_for_graph = features_to_use_for_graph, tolerance_ppm = tolerance_ppm)
                     # MSI classification
                     if (plot_figures == TRUE) {
                         classification_ms_images_model <- model_classification$classification_msi_model
@@ -4182,7 +4194,7 @@ functions_mass_spectrometry <- function() {
                 }
                 if ("profile" %in% classification_mode) {
                     # Perform the classification
-                    model_classification_profile <- single_model_classification_of_spectra(spectra = sample_spectra_avg, model_x = model_list[[md]], model_name = list_of_models[md], preprocessing_parameters = NULL, peak_picking_algorithm = peak_picking_algorithm, deisotope_peaklist = deisotope_peaklist, peak_picking_SNR = 3, peak_filtering_frequency_threshold_percent = 0, low_intensity_peak_removal_threshold_percent = 0, low_intensity_peak_removal_threshold_method = "element-wise", tof_mode = tof_mode, allow_parallelization = allow_parallelization, pixel_grouping = pixel_grouping, number_of_hca_nodes = number_of_hca_nodes, moving_window_size = moving_window_size, seed = seed, correlation_method_for_adjacency_matrix = correlation_method_for_adjacency_matrix, correlation_threshold_for_adjacency_matrix = correlation_threshold_for_adjacency_matrix, pvalue_threshold_for_adjacency_matrix = pvalue_threshold_for_adjacency_matrix, max_GA_generations = max_GA_generations, iterations_with_no_change = iterations_with_no_change_GA, number_of_spectra_partitions = number_of_spectra_partitions_graph, partitioning_method = partitioning_method_graph, plot_figures = plot_figures, plot_graphs = plot_graphs, plot_legends = plot_legends, classification_mode_graph = classification_mode_graph, features_to_use_for_graph = features_to_use_for_graph)
+                    model_classification_profile <- single_model_classification_of_spectra(spectra = sample_spectra_avg, model_x = model_list[[md]], model_name = list_of_models[md], preprocessing_parameters = NULL, peak_picking_algorithm = peak_picking_algorithm, deisotope_peaklist = FALSE, peak_picking_SNR = 3, peak_filtering_frequency_threshold_percent = 0, low_intensity_peak_removal_threshold_percent = 0, low_intensity_peak_removal_threshold_method = "element-wise", tof_mode = tof_mode, allow_parallelization = allow_parallelization, pixel_grouping = pixel_grouping, number_of_hca_nodes = number_of_hca_nodes, moving_window_size = moving_window_size, seed = seed, correlation_method_for_adjacency_matrix = correlation_method_for_adjacency_matrix, correlation_threshold_for_adjacency_matrix = correlation_threshold_for_adjacency_matrix, pvalue_threshold_for_adjacency_matrix = pvalue_threshold_for_adjacency_matrix, max_GA_generations = max_GA_generations, iterations_with_no_change = iterations_with_no_change_GA, number_of_spectra_partitions = number_of_spectra_partitions_graph, partitioning_method = partitioning_method_graph, plot_figures = plot_figures, plot_graphs = plot_graphs, plot_legends = plot_legends, classification_mode_graph = classification_mode_graph, features_to_use_for_graph = features_to_use_for_graph)
                     # Plot AVG spectrum
                     if (plot_figures == TRUE) {
                         average_spectrum_profile_with_bars_model <- model_classification_profile$average_spectrum_with_bars
@@ -4891,28 +4903,28 @@ functions_mass_spectrometry <- function() {
         }
         ### Define the control function of the RFE
         rfe_ctrl <- rfeControl(functions = caretFuncs, method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, saveDetails = TRUE, allowParallel = allow_parallelization, rerank = feature_reranking, seeds = NULL)
+        # Two classes
         if (length(levels(as.factor(training_set[,discriminant_attribute]))) == 2) {
             train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE, summaryFunction = twoClassSummary)
         } else if (length(levels(as.factor(training_set[,discriminant_attribute]))) > 2) {
+            # Multi-classes
             train_ctrl <- trainControl(method = "repeatedcv", repeats = cv_repeats_control, number = k_fold_cv_control, allowParallel = allow_parallelization, seeds = NULL, classProbs = TRUE, summaryFunction = multiClassSummary)
         }
         ### Model tuning is performed during feature selection (best choice)
         if (!is.null(model_tuning) && model_tuning == "embedded" && is.list(model_tune_grid)) {
             # Run the RFE
             rfe_model <- rfe(x = training_set[, !(names(training_set) %in% non_features)], y = as.factor(training_set[,discriminant_attribute]), sizes = subset_sizes, rfeControl = rfe_ctrl, trControl = train_ctrl, method = selection_method, metric = selection_metric, preProcess = preprocessing, tuneGrid = expand.grid(model_tune_grid))
-            # Model performances
-            if (selection_metric == "kappa" || selection_metric == "Kappa") {
-                fs_model_performance <- as.numeric(max(rfe_model$fit$results$Kappa, na.rm = TRUE))
-                names(fs_model_performance) <- "Kappa"
-            } else if (selection_metric == "accuracy" || selection_metric == "Accuracy") {
-                fs_model_performance <- as.numeric(max(rfe_model$fit$results$Accuracy, na.rm = TRUE))
-                names(fs_model_performance) <- "Accuracy"
-            }
         } else if (is.null(model_tuning) || model_tuning == "after" || (model_tuning == "no" || model_tuning == "none")) {
             ### Tuning will be performed afterwards with only the features selected by RFE: now, only a small tuning is performed
             # Run the RFE
             rfe_model <- rfe(x = training_set[, !(names(training_set) %in% non_features)], y = as.factor(training_set[,discriminant_attribute]), sizes = subset_sizes, rfeControl = rfe_ctrl, trControl = train_ctrl, method = selection_method, metric = selection_metric, preProcess = preprocessing)
-            # Model performances
+        }
+        ### Model performances: two classes (ROC)
+        if (length(levels(as.factor(training_set[,discriminant_attribute]))) == 2) {
+                fs_model_performance <- as.numeric(max(rfe_model$fit$results$ROC, na.rm = TRUE))
+                names(fs_model_performance) <- "ROC AUC"
+        } else if (length(levels(as.factor(training_set[,discriminant_attribute]))) > 2) {
+            ### Model performances: multi-classes (Accuracy or Kappa)
             if (selection_metric == "kappa" || selection_metric == "Kappa") {
                 fs_model_performance <- as.numeric(max(rfe_model$fit$results$Kappa, na.rm = TRUE))
                 names(fs_model_performance) <- "Kappa"
@@ -4990,13 +5002,19 @@ functions_mass_spectrometry <- function() {
             } else {
                 model_tuning_graphics <- NULL
             }
-            # Model performances
-            if (selection_metric == "kappa" || selection_metric == "Kappa") {
-                fs_model_performance_tuning <- as.numeric(max(fs_model_tuning$results$Kappa, na.rm = TRUE))
-                names(fs_model_performance_tuning) <- "Kappa"
-            } else if (selection_metric == "accuracy" || selection_metric == "Accuracy") {
-                fs_model_performance_tuning <- as.numeric(max(fs_model_tuning$results$Accuracy, na.rm = TRUE))
-                names(fs_model_performance_tuning) <- "Accuracy"
+            ### Model performances: two classes (ROC)
+            if (length(levels(as.factor(training_set[,discriminant_attribute]))) == 2) {
+                fs_model_performance_tuning <- as.numeric(max(fs_model_tuning$results$ROC, na.rm = TRUE))
+                names(fs_model_performance_tuning) <- "ROC AUC"
+            } else if (length(levels(as.factor(training_set[,discriminant_attribute]))) > 2) {
+                ### Model performances: multi-classes (Accuracy or Kappa)
+                if (selection_metric == "kappa" || selection_metric == "Kappa") {
+                    fs_model_performance_tuning <- as.numeric(max(fs_model_tuning$results$Kappa, na.rm = TRUE))
+                    names(fs_model_performance_tuning) <- "Kappa"
+                } else if (selection_metric == "accuracy" || selection_metric == "Accuracy") {
+                    fs_model_performance_tuning <- as.numeric(max(fs_model_tuning$results$Accuracy, na.rm = TRUE))
+                    names(fs_model_performance_tuning) <- "Accuracy"
+                }
             }
             ## Keep the model and the performance values only if the tuning yields more performances that just after the RFE
             if (fs_model_performance_tuning > fs_model_performance) {
@@ -8828,6 +8846,7 @@ functions_mass_spectrometry <- function() {
 
 
 
+
 ####################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################################
 
 
@@ -8869,7 +8888,7 @@ ms_peaklist_export <- function() {
     
     
     ### Program version (Specified by the program writer!!!!)
-    R_script_version <- "2017.07.12.0"
+    R_script_version <- "2017.07.26.0"
     ### Force update (in case something goes wrong after an update, when checking for updates and reading the variable force_update, the script can automatically download the latest working version, even if the rest of the script is corrupted, because it is the first thing that reads)
     force_update <- FALSE
     ### GitHub URL where the R file is
@@ -9181,7 +9200,7 @@ ms_peaklist_export <- function() {
             }
             # Strength
             if (!is.null(smoothing_algorithm)) {
-                smoothing_strength <- select.list(c("medium", "strong", "stronger"), title = "Smoothing strength", multiple = FALSE, preselect = "medium")
+                smoothing_strength <- select.list(c("small", "medium", "strong", "stronger"), title = "Smoothing strength", multiple = FALSE, preselect = "medium")
                 # Raise the focus on the preproc window
                 tkraise(window)
                 tkraise(preproc_window)
